@@ -11,7 +11,8 @@ import {
   BarChart3, 
   Settings,
   LogOut,
-  Home
+  Home,
+  Store
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -57,6 +58,10 @@ export function Layout({ children }: LayoutProps) {
     { href: '/admin/users', icon: Settings, label: 'Usuários' },
   ];
 
+  const regionalItems = [
+    { href: '/franchisees', icon: Store, label: 'Franqueados' },
+  ];
+
   const Navigation = () => (
     <nav className="space-y-2">
       {navItems.map((item) => {
@@ -78,6 +83,50 @@ export function Layout({ children }: LayoutProps) {
           </Link>
         );
       })}
+
+      {appUser?.role === 'regional' && (
+        <>
+          <div className="h-px bg-border my-4" />
+          <div className="px-3 py-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Regional
+            </h3>
+          </div>
+          {regionalItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                  isActive 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                }`}
+                onClick={() => setIsOpen(false)}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </>
+      )}
+
+      {appUser?.role === 'franchisee' && (
+        <>
+          <div className="h-px bg-border my-4" />
+          <div className="px-3 py-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Franqueado
+            </h3>
+          </div>
+          <div className="px-3 py-2 text-sm text-muted-foreground">
+            <p>Seus dados e relatórios estarão aqui.</p>
+          </div>
+        </>
+      )}
 
       {appUser?.role === 'admin' && (
         <>
@@ -138,7 +187,10 @@ export function Layout({ children }: LayoutProps) {
             <div className="text-right">
               <p className="text-sm font-medium">{appUser?.email}</p>
               <p className="text-xs text-muted-foreground">
-                {appUser?.role === 'admin' ? 'Administrador' : 'Operador'} 
+                {appUser?.role === 'admin' ? 'Administrador' : 
+                 appUser?.role === 'master_br' ? 'Master Brasil' :
+                 appUser?.role === 'regional' ? 'Regional' :
+                 appUser?.role === 'franchisee' ? 'Franqueado' : 'Usuário'} 
                 {appUser?.city_name && ` • ${appUser.city_name}`}
               </p>
             </div>

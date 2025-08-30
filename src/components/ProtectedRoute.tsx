@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requireRole?: 'admin' | 'city_user';
+  requireRole?: 'admin' | 'master_br' | 'regional' | 'franchisee';
 }
 
 export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {

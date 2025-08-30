@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, DollarSign, Activity, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,6 +21,11 @@ export default function Dashboard() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const { appUser } = useAuth();
+
+  // Redirecionar franqueados para seu dashboard específico
+  if (appUser?.role === 'franchisee') {
+    return <Navigate to="/franchisee-dashboard" replace />;
+  }
 
   useEffect(() => {
     const fetchStats = async () => {

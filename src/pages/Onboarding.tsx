@@ -24,19 +24,40 @@ export default function Onboarding() {
 
   useEffect(() => {
     const fetchCities = async () => {
-      const { data, error } = await supabase
-        .from('cities')
-        .select('id, name, slug')
-        .order('name');
+      try {
+        console.log('Onboarding: Buscando cidades...');
+        const { data, error } = await supabase
+          .from('cities')
+          .select('id, name, slug')
+          .order('name');
 
-      if (error) {
+        console.log('Onboarding: Resultado:', { data, error });
+
+        if (error) {
+          console.error('Onboarding: Erro ao carregar cidades:', error);
+          toast({
+            variant: "destructive",
+            title: "Erro",
+            description: `Não foi possível carregar as cidades: ${error.message}`
+          });
+        } else {
+          console.log(`Onboarding: ${data?.length || 0} cidades carregadas`);
+          setCities(data || []);
+          if (data && data.length === 0) {
+            toast({
+              variant: "destructive",
+              title: "Aviso",
+              description: "Nenhuma cidade encontrada. Acesse /test-cities para criar cidades de teste."
+            });
+          }
+        }
+      } catch (error: any) {
+        console.error('Onboarding: Erro inesperado:', error);
         toast({
           variant: "destructive",
-          title: "Erro",
-          description: "Não foi possível carregar as cidades."
+          title: "Erro inesperado",
+          description: error.message || "Erro ao carregar cidades."
         });
-      } else {
-        setCities(data || []);
       }
     };
 
@@ -78,20 +99,37 @@ export default function Onboarding() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase
+      console.log('=== DEBUG: Completando perfil ===');
+      console.log('User:', user);
+      console.log('SelectedCityId:', selectedCityId);
+      
+      const userData = {
+        id: user!.id,
+        email: user!.email!,
+        role: 'regional',
+        city_id: selectedCityId
+      };
+      
+      console.log('Dados a inserir:', userData);
+
+      const { data, error } = await supabase
         .from('app_users')
-        .upsert({
-          id: user!.id,
-          email: user!.email!,
-          role: 'city_user',
-          city_id: selectedCityId
-        });
+        .upsert(userData)
+        .select();
+
+      console.log('Resultado upsert:', { data, error });
 
       if (error) {
+        console.error('Erro detalhado:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         toast({
           variant: "destructive",
           title: "Erro",
-          description: "Não foi possível completar o perfil."
+          description: `Não foi possível completar o perfil: ${error.message}`
         });
       } else {
         await refetchAppUser();
@@ -141,7 +179,7 @@ export default function Onboarding() {
           <div className="p-4 bg-muted rounded-lg">
             <h3 className="font-medium mb-2">Seu papel:</h3>
             <p className="text-sm text-muted-foreground">
-              <strong>Operador da cidade</strong> - Você poderá gerenciar leads, negócios e atividades da sua cidade.
+              <strong>Regional</strong> - Você poderá gerenciar leads, negócios, atividades e franqueados da sua cidade.
             </p>
           </div>
 

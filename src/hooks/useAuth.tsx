@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface AppUser {
   id: string;
   email: string;
-  role: 'admin' | 'city_user';
+  role: 'admin' | 'master_br' | 'regional' | 'franchisee';
   city_id: string | null;
   city_name?: string;
 }
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAppUser({
           id: data.id,
           email: data.email,
-          role: data.role as 'admin' | 'city_user',
+          role: data.role as 'admin' | 'master_br' | 'regional' | 'franchisee',
           city_id: data.city_id,
           city_name: (data.cities as any)?.name
         });
