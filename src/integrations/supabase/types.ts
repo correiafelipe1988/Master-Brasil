@@ -14,13 +14,223 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activities: {
+        Row: {
+          city_id: string
+          created_at: string
+          due_at: string | null
+          id: string
+          kind: string
+          lead_id: string | null
+          notes: string | null
+        }
+        Insert: {
+          city_id: string
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          kind: string
+          lead_id?: string | null
+          notes?: string | null
+        }
+        Update: {
+          city_id?: string
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          kind?: string
+          lead_id?: string | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_users: {
+        Row: {
+          city_id: string | null
+          created_at: string
+          email: string
+          id: string
+          role: string
+        }
+        Insert: {
+          city_id?: string | null
+          created_at?: string
+          email: string
+          id: string
+          role: string
+        }
+        Update: {
+          city_id?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_users_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cities: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
+      deals: {
+        Row: {
+          amount: number
+          city_id: string
+          created_at: string
+          id: string
+          lead_id: string | null
+          stage: string
+          title: string
+        }
+        Insert: {
+          amount?: number
+          city_id: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          stage?: string
+          title: string
+        }
+        Update: {
+          amount?: number
+          city_id?: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          stage?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deals_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          city_id: string
+          created_at: string
+          id: string
+          name: string
+          phone: string | null
+          source: string | null
+          status: string | null
+        }
+        Insert: {
+          city_id: string
+          created_at?: string
+          id?: string
+          name: string
+          phone?: string | null
+          source?: string | null
+          status?: string | null
+        }
+        Update: {
+          city_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          source?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      v_admin_kpis: {
+        Row: {
+          city: string | null
+          deals_ganhos: number | null
+          deals_total: number | null
+          receita_ganha: number | null
+        }
+        Relationships: []
+      }
+      v_admin_pipeline: {
+        Row: {
+          amount: number | null
+          city: string | null
+          created_at: string | null
+          id: string | null
+          stage: string | null
+          title: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      jwt: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      jwt_city_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      jwt_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
