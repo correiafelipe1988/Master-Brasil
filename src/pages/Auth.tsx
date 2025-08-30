@@ -75,11 +75,11 @@ export default function Auth() {
     console.log('CNPJ limpo:', cleanCnpj);
 
     try {
-      // Buscar franqueado pelo CNPJ
+      // Buscar franqueado pelo CNPJ (incluindo email se disponível)
       console.log('Buscando franqueado com CNPJ:', cleanCnpj);
       const { data: franchisee, error: franchiseeError } = await (supabase as any)
         .from('franchisees')
-        .select('*')
+        .select('*, email')
         .eq('cnpj', cleanCnpj)
         .single();
 
@@ -94,43 +94,38 @@ export default function Auth() {
         return;
       }
 
-      // Verificar se tem usuário vinculado (user_id não nulo)
-      console.log('Verificando user_id do franchisee:', franchisee.user_id);
-      if (franchisee.user_id) {
-        // Já tem usuário - buscar email do app_users
-        console.log('Franqueado tem user_id:', franchisee.user_id);
+      // Verificar se tem usuário vinculado e email disponível
+      console.log('Verificando user_id e email do franchisee:', { 
+        user_id: franchisee.user_id, 
+        email: franchisee.email 
+      });
+      
+      if (franchisee.user_id && franchisee.email) {
+        // Já tem usuário e email - fazer login direto
+        console.log('Tentando login com email do franchisee:', franchisee.email);
+        const { error } = await signIn(franchisee.email, password);
         
-        const { data: appUser, error: appUserError } = await supabase
-          .from('app_users')
-          .select('email')
-          .eq('id', franchisee.user_id)
-          .single();
-
-        console.log('App user encontrado:', { appUser, appUserError });
-
-        if (appUser?.email) {
-          // Fazer login normal
-          const { error } = await signIn(appUser.email, password);
-          if (error) {
-            toast({
-              variant: "destructive",
-              title: "Erro no login",
-              description: "Senha incorreta."
-            });
-          } else {
-            toast({
-              title: "Login realizado!",
-              description: `Bem-vindo, ${franchisee.fantasy_name || franchisee.company_name}!`
-            });
-          }
-        } else {
-          // User_id existe mas não tem app_user correspondente - erro
+        if (error) {
+          console.log('Erro no login:', error);
           toast({
             variant: "destructive",
-            title: "Erro no sistema",
-            description: "Problema na configuração da conta. Contate o suporte."
+            title: "Erro no login",
+            description: "Senha incorreta. Verifique sua senha."
+          });
+        } else {
+          toast({
+            title: "Login realizado!",
+            description: `Bem-vindo, ${franchisee.fantasy_name || franchisee.company_name}!`
           });
         }
+      } else if (franchisee.user_id && !franchisee.email) {
+        // Tem user_id mas não tem email na tabela - franqueado antigo
+        // Orientar para usar login padrão
+        toast({
+          variant: "destructive", 
+          title: "Use o login padrão",
+          description: "Sua conta já existe. Use a primeira aba (login padrão) com seu email e senha."
+        });
       } else {
         // Não tem usuário - redirecionar para cadastro de primeira senha
         console.log('Franqueado encontrado, redirecionando para primeira senha:', franchisee);
@@ -194,11 +189,14 @@ export default function Auth() {
           // Continuar mesmo com erro no perfil
         }
 
-        // Atualizar franchisee com user_id
-        console.log('Atualizando franchisee com user_id:', authData.user.id, 'para franchisee:', selectedFranchisee.id);
+        // Atualizar franchisee com user_id e email
+        console.log('Atualizando franchisee com user_id:', authData.user.id, 'e email:', email, 'para franchisee:', selectedFranchisee.id);
         const { data: updateData, error: updateError } = await (supabase as any)
           .from('franchisees')
-          .update({ user_id: authData.user.id })
+          .update({ 
+            user_id: authData.user.id,
+            email: email
+          })
           .eq('id', selectedFranchisee.id)
           .select();
 

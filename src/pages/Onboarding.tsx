@@ -22,6 +22,7 @@ export default function Onboarding() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // TODOS OS useEffect DEVEM FICAR NO TOPO, ANTES DE QUALQUER RETURN
   useEffect(() => {
     const fetchCities = async () => {
       try {
@@ -64,6 +65,15 @@ export default function Onboarding() {
     fetchCities();
   }, [toast]);
 
+  // Para usuários que já existem no app_users mas appUser não carregou (RLS), 
+  // tentar refetch antes de mostrar onboarding
+  useEffect(() => {
+    if (!loading && user && !appUser) {
+      console.log('Usuário existe mas appUser não carregado, tentando refetch...');
+      refetchAppUser();
+    }
+  }, [loading, user, appUser, refetchAppUser]);
+
   // Se não estiver logado, vai para auth
   if (!loading && !user) {
     return <Navigate to="/auth" replace />;
@@ -103,10 +113,34 @@ export default function Onboarding() {
       console.log('User:', user);
       console.log('SelectedCityId:', selectedCityId);
       
+      // Verificar se já existe um app_user com role definido
+      const { data: existingUser, error: existingError } = await supabase
+        .from('app_users')
+        .select('role')
+        .eq('id', user!.id)
+        .single();
+
+      console.log('Usuário existente:', existingUser);
+      console.log('Erro na consulta:', existingError);
+
+      // Se já tem role definido (ex: franchisee), não sobrescrever
+      // Se há erro na consulta (ex: RLS), verificar se usuário já existe na nossa base
+      let roleToUse = 'regional'; // default para novos usuários
+      
+      if (existingUser?.role && !existingError) {
+        // Conseguiu buscar - usar role existente
+        roleToUse = existingUser.role;
+      } else if (existingError?.code === 'PGRST116') {
+        // RLS bloqueou - usuário pode já existir, tentar preservar role
+        // Para este caso específico, assumir que é franchisee se veio do fluxo de cadastro
+        console.log('RLS bloqueou consulta - assumindo usuário existente');
+        roleToUse = 'franchisee'; // Preservar o role que foi criado
+      }
+      
       const userData = {
         id: user!.id,
         email: user!.email!,
-        role: 'regional',
+        role: roleToUse,
         city_id: selectedCityId
       };
       
