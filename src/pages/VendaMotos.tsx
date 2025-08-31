@@ -60,6 +60,13 @@ export default function VendaMotos() {
 
   const fetchFranqueados = async () => {
     try {
+      console.log('🔍 [VendaMotos] Iniciando busca de franqueados...');
+      console.log('🔍 [VendaMotos] Usuário atual:', {
+        id: appUser?.id,
+        role: appUser?.role,
+        city_id: appUser?.city_id
+      });
+
       // Para franqueados, buscar primeiro os dados da franquia para obter city_id
       let cityId = appUser?.city_id;
 
@@ -78,22 +85,27 @@ export default function VendaMotos() {
         cityId = franchiseeData?.city_id;
       }
 
+      console.log('🔍 [VendaMotos] City ID para filtro:', cityId);
+
       let query = supabase
         .from('franchisees')
         .select('id, fantasy_name, company_name, cnpj, city_id')
-        .eq('status', 'ativo')
+        .eq('status', 'active')
         .order('fantasy_name');
 
       // Filtrar por cidade para usuários regionais
       if (appUser?.role === 'regional' && cityId) {
+        console.log('🔍 [VendaMotos] Aplicando filtro por city_id para regional:', cityId);
         query = query.eq('city_id', cityId);
+      } else {
+        console.log('🔍 [VendaMotos] Sem filtro por city_id - role:', appUser?.role, 'cityId:', cityId);
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
-      
-      console.log('🔍 DEBUG FINAL - Franqueados encontrados:', data?.length, data);
+
+      console.log('🔍 [VendaMotos] Franqueados encontrados:', data?.length, data);
       setFranqueados(data || []);
     } catch (error) {
       console.error('Erro ao buscar franqueados:', error);
