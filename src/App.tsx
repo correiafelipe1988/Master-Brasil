@@ -20,6 +20,7 @@ import FranchiseeDashboard from "./pages/FranchiseeDashboard";
 import FranchiseeReports from "./pages/FranchiseeReports";
 import Deals from "./pages/Deals";
 import MotorcycleManagement from "./pages/MotorcycleManagement";
+import VendaMotos from "./pages/VendaMotos";
 import ClientManagement from "./pages/ClientManagement";
 import NotFound from "./pages/NotFound";
 
@@ -93,6 +94,14 @@ const App = () => (
               <ProtectedRoute>
                 <Layout>
                   <MotorcycleManagement />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/vendas" element={
+              <ProtectedRoute requireRole={["admin", "master_br", "regional"]}>
+                <Layout>
+                  <VendaMotos />
                 </Layout>
               </ProtectedRoute>
             } />

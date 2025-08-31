@@ -309,6 +309,71 @@ export type Database = {
           },
         ]
       }
+      vendas: {
+        Row: {
+          id: string
+          data_compra: string
+          parceiro: string
+          status: string
+          entregue: boolean
+          franqueado: string
+          cnpj: string
+          razao_social: string
+          quantidade: number
+          marca: string
+          modelo: string
+          valor_unitario: number
+          valor_total: number
+          city_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          data_compra: string
+          parceiro: string
+          status: string
+          entregue?: boolean
+          franqueado: string
+          cnpj: string
+          razao_social: string
+          quantidade: number
+          marca: string
+          modelo: string
+          valor_unitario: number
+          valor_total: number
+          city_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          data_compra?: string
+          parceiro?: string
+          status?: string
+          entregue?: boolean
+          franqueado?: string
+          cnpj?: string
+          razao_social?: string
+          quantidade?: number
+          marca?: string
+          modelo?: string
+          valor_unitario?: number
+          valor_total?: number
+          city_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendas_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       v_admin_kpis: {
