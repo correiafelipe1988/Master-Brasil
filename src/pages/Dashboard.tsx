@@ -14,16 +14,6 @@ import { BaseGrowthChart } from '@/components/charts/base-growth-chart';
 import { MonthlyRentalsChart } from '@/components/charts/monthly-rentals-chart';
 import { DailyRentalsChart } from '@/components/charts/daily-rentals-chart';
 
-interface Motorcycle {
-  id: string;
-  placa: string;
-  modelo: string;
-  status: 'active' | 'alugada' | 'relocada' | 'manutencao' | 'recolhida' | 'indisponivel_rastreador' | 'indisponivel_emplacamento';
-  data_ultima_mov?: string;
-  data_criacao?: string;
-  city_id?: string;
-  franchisee_id?: string;
-}
 
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth();
@@ -191,7 +181,7 @@ const processRealMotorcycleData = (motorcycles: any[]) => {
 };
 
 // Dados simulados para demonstração (fallback)
-const generateMockData = (userRole: string, cityName: string) => {
+const generateMockData = (userRole: string) => {
   const baseData = {
     totalMotos: userRole === 'admin' ? 532 : userRole === 'master_br' ? 532 : 150,
     disponiveisHoje: userRole === 'admin' ? 50 : userRole === 'master_br' ? 50 : 15,
@@ -550,8 +540,7 @@ export default function Dashboard() {
         console.log('[Dashboard] USANDO DADOS SIMULADOS - ERRO NA BUSCA');
         // Fallback para dados simulados
         const mockData = generateMockData(
-          appUser.role || 'regional',
-          appUser.city_name || 'Salvador'
+          appUser.role || 'regional'
         );
         setDashboardData(mockData);
 
@@ -576,7 +565,7 @@ export default function Dashboard() {
     );
   }
 
-  const { todayData, monthData, kpi, statusDistribution, baseGrowth, monthlyRentals } = dashboardData;
+  const { todayData, monthData, statusDistribution, baseGrowth, monthlyRentals } = dashboardData;
   
   return (
     <div className="space-y-6">

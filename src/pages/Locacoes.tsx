@@ -7,10 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar, Car, Users, CheckCircle, Clock, Plus, Eye, FileText, Download, Send } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { Car, CheckCircle, Clock, Plus, Eye } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { PDFGenerator } from '@/components/PDFGenerator';
+import { DigitalSignature } from '@/components/DigitalSignature';
+import { EmailService } from '@/services/emailService';
 
 interface Rental {
   id: string;
@@ -29,6 +32,7 @@ interface Rental {
   daily_rate: number;
   total_amount: number;
   status: 'active' | 'completed' | 'cancelled';
+  observations?: string;
   created_at: string;
   updated_at: string;
 }
@@ -42,14 +46,6 @@ interface RentalPlan {
   description: string;
 }
 
-interface Contract {
-  id: string;
-  rental_id: string;
-  contract_number: string;
-  signed_date: string;
-  status: 'pending' | 'signed' | 'expired';
-  document_url?: string;
-}
 
 export default function Locacoes() {
   const { appUser } = useAuth();
@@ -59,13 +55,12 @@ export default function Locacoes() {
   const [franchisees, setFranchisees] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
-  const [contracts, setContracts] = useState<Contract[]>([]);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [selectedFranchisee, setSelectedFranchisee] = useState<any>(null);
   const [availablePlates, setAvailablePlates] = useState<any[]>([]);
   const [cpfSearch, setCpfSearch] = useState('');
-  const [clients, setClients] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     client_name: '',
@@ -125,20 +120,17 @@ export default function Locacoes() {
 
       console.log('🔍 [Locacoes] City ID para filtro:', cityId);
 
-      // Carregar locações
-      const { data: rentalsData, error: rentalsError } = await supabase
-        .from('rentals')
-        .select('*')
-        .order('created_at', { ascending: false });
 
-      if (rentalsError) throw rentalsError;
-
-      // Carregar planos
-      const { data: plansData, error: plansError } = await supabase
-        .from('rental_plans')
-        .select('*');
-
-      if (plansError) throw plansError;
+      const mockPlans: RentalPlan[] = [
+        {
+          id: '1',
+          name: 'Plano Mensal',
+          daily_rate: 45,
+          minimum_days: 30,
+          maximum_days: 365,
+          description: 'Plano ideal para uso prolongado'
+        }
+      ];
 
       // Query para motocicletas com filtro por cidade
       let motorcyclesQuery = supabase
@@ -179,30 +171,76 @@ export default function Locacoes() {
           }
       }
 
+      // Query para locações com filtro por usuário
+      let rentalsQuery = (supabase as any).from('rentals').select('*');
+      
+      // Aplicar filtros baseados no papel do usuário para locações
+      switch (appUser?.role) {
+        case 'admin':
+        case 'master_br':
+          // Admin e Master BR veem todas as locações
+          break;
+        case 'regional':
+        case 'franchisee':
+          // Regional e Franqueado veem apenas locações da sua cidade
+          if (cityId) {
+            // Filtrar por franqueados da cidade (através do franchisee_id)
+            const franchiseeIds = (await supabase
+              .from('franchisees')
+              .select('id')
+              .eq('city_id', cityId)).data?.map(f => f.id) || [];
+            
+            if (franchiseeIds.length > 0) {
+              rentalsQuery = rentalsQuery.in('franchisee_id', franchiseeIds);
+            }
+          }
+          break;
+      }
+
       // Executar queries
-      const { data: motorcyclesData, error: motorcyclesError } = await motorcyclesQuery;
-      if (motorcyclesError) throw motorcyclesError;
+      const [motorcyclesResult, franchiseesResult, rentalsResult] = await Promise.all([
+        motorcyclesQuery,
+        franchiseesQuery,
+        rentalsQuery.order('created_at', { ascending: false })
+      ]);
 
-      const { data: franchiseesData, error: franchiseesError } = await franchiseesQuery;
-      if (franchiseesError) throw franchiseesError;
+      if (motorcyclesResult.error) throw motorcyclesResult.error;
+      if (franchiseesResult.error) throw franchiseesResult.error;
+      if (rentalsResult.error) throw rentalsResult.error;
 
-      // Carregar clientes
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('clients')
-        .select('*');
+      // Converter dados das locações para o formato esperado
+      const rentalsData = (rentalsResult.data || []).map((rental: any) => ({
+        id: rental.id,
+        client_name: rental.client_name,
+        client_email: rental.client_email,
+        client_phone: rental.client_phone,
+        client_cpf: rental.client_cpf,
+        motorcycle_id: rental.motorcycle_id,
+        franchisee_id: rental.franchisee_id,
+        plan_id: rental.plan_id,
+        start_date: rental.start_date,
+        end_date: rental.end_date || '',
+        km_inicial: rental.km_inicial || 0,
+        km_final: rental.km_final || 0,
+        total_days: rental.total_days,
+        daily_rate: rental.daily_rate,
+        total_amount: rental.total_amount,
+        status: rental.status,
+        observations: rental.notes || '',
+        created_at: rental.created_at,
+        updated_at: rental.updated_at
+      }));
 
-      if (clientsError) throw clientsError;
-
-      setRentals(rentalsData || []);
-      setPlans(plansData || []);
-      setMotorcycles(motorcyclesData || []);
-      setFranchisees(franchiseesData || []);
-      setClients(clientsData || []);
+      setRentals(rentalsData);
+      setPlans(mockPlans);
+      setMotorcycles(motorcyclesResult.data || []);
+      setFranchisees(franchiseesResult.data || []);
 
       console.log('🔍 [Locacoes] Dados carregados:', {
-        motorcycles: motorcyclesData?.length || 0,
-        franchisees: franchiseesData?.length || 0,
-        clients: clientsData?.length || 0
+        rentals: rentalsData.length,
+        plans: mockPlans.length,
+        motorcycles: motorcyclesResult.data?.length || 0,
+        franchisees: franchiseesResult.data?.length || 0
       });
 
     } catch (error) {
@@ -221,14 +259,16 @@ export default function Locacoes() {
 
     try {
       console.log('🔍 [Locacoes] Buscando cliente por CPF:', cpf);
-
-      const { data, error } = await supabase
+      
+      // Limpar formatação do CPF (remover pontos e traços)
+      const cleanCpf = cpf.replace(/\D/g, '');
+      
+      // Buscar cliente no banco de dados (usando any para evitar erro de tipagem)
+      const { data: clientData, error } = await (supabase as any)
         .from('clients')
         .select('*')
-        .eq('cpf', cpf)
+        .or(`cpf.eq.${cleanCpf},cpf.eq.${cpf}`)
         .single();
-
-      console.log('🔍 [Locacoes] Resultado da busca:', { data, error });
 
       if (error && error.code !== 'PGRST116') {
         console.error('Erro ao buscar cliente:', error);
@@ -236,28 +276,29 @@ export default function Locacoes() {
         return;
       }
 
-      if (data) {
-        console.log('🔍 [Locacoes] Cliente encontrado:', data);
-        setSelectedClient(data);
+      if (clientData) {
+        console.log('✅ [Locacoes] Cliente encontrado:', clientData);
+        
+        const foundClient = {
+          id: clientData.id,
+          name: clientData.full_name,
+          email: clientData.email || '',
+          phone: clientData.phone || '',
+          cpf: clientData.cpf
+        };
 
-        // Verificar se os campos existem no objeto data
-        console.log('🔍 [Locacoes] Campos do cliente:', {
-          full_name: data.full_name,
-          email: data.email,
-          phone: data.phone,
-          cpf: data.cpf
-        });
-
+        setSelectedClient(foundClient);
         setFormData(prev => ({
           ...prev,
-          client_name: data.full_name || '',
-          client_email: data.email || '',
-          client_phone: data.phone || '',
-          client_cpf: data.cpf || cpf
+          client_name: foundClient.name,
+          client_email: foundClient.email,
+          client_phone: foundClient.phone,
+          client_cpf: foundClient.cpf
         }));
         toast.success('Cliente encontrado!');
       } else {
-        console.log('🔍 [Locacoes] Cliente não encontrado');
+        console.log('❌ [Locacoes] Cliente não encontrado para CPF:', cpf);
+        
         setSelectedClient(null);
         setFormData(prev => ({
           ...prev,
@@ -269,8 +310,8 @@ export default function Locacoes() {
         toast.info('Cliente não encontrado. Preencha os dados para cadastrar um novo cliente.');
       }
     } catch (error) {
-      console.error('Erro ao buscar cliente:', error);
-      toast.error('Erro ao buscar cliente');
+      console.error('Erro inesperado ao buscar cliente:', error);
+      toast.error('Erro inesperado ao buscar cliente');
     }
   };
 
@@ -308,15 +349,43 @@ export default function Locacoes() {
 
     // Encontrar a moto selecionada e definir o franqueado automaticamente
     const selectedMotorcycle = motorcycles.find(m => m.id === motorcycleId);
+    console.log('🔍 [Locacoes] Moto selecionada:', selectedMotorcycle);
+    console.log('🔍 [Locacoes] Franqueados disponíveis:', franchisees.length, franchisees.map(f => ({ id: f.id, name: f.fantasy_name })));
+    
     if (selectedMotorcycle) {
-      const franchisee = franchisees.find(f => f.user_id === selectedMotorcycle.franchisee_id);
+      console.log('🔍 [Locacoes] Buscando franqueado com ID:', selectedMotorcycle.franchisee_id);
+      
+      // Tentar buscar por ID direto primeiro
+      let franchisee = franchisees.find(f => f.id === selectedMotorcycle.franchisee_id);
+      
+      // Se não encontrar, tentar buscar por user_id (caso o banco tenha essa estrutura)
+      if (!franchisee) {
+        franchisee = franchisees.find(f => f.user_id === selectedMotorcycle.franchisee_id);
+        console.log('🔍 [Locacoes] Tentando buscar por user_id...');
+      }
+      
       if (franchisee) {
         setSelectedFranchisee(franchisee);
         setFormData(prev => ({
           ...prev,
           franchisee_id: franchisee.id
         }));
+        console.log('✅ [Locacoes] Franqueado selecionado automaticamente:', franchisee.fantasy_name);
+      } else {
+        console.error('❌ [Locacoes] Franqueado não encontrado!', {
+          motorcycle_franchisee_id: selectedMotorcycle.franchisee_id,
+          available_franchisee_ids: franchisees.map(f => f.id),
+          available_franchisee_user_ids: franchisees.map(f => f.user_id)
+        });
+        // Limpar seleção de franqueado se não encontrar
+        setSelectedFranchisee(null);
+        setFormData(prev => ({
+          ...prev,
+          franchisee_id: ''
+        }));
       }
+    } else {
+      console.error('❌ [Locacoes] Motocicleta não encontrada com ID:', motorcycleId);
     }
   };
 
@@ -350,17 +419,28 @@ export default function Locacoes() {
     
     try {
       // Validações básicas
-      if (!formData.client_name || !formData.client_cpf || !formData.motorcycle_id || !formData.motorcycle_plate || !formData.plan_id || !formData.start_date) {
+      if (!formData.client_name || !formData.client_cpf || !formData.motorcycle_id || !formData.motorcycle_plate || !formData.start_date) {
         toast.error('Preencha todos os campos obrigatórios');
         console.log('🚨 [Locacoes] Campos faltando:', {
           client_name: formData.client_name,
           client_cpf: formData.client_cpf,
           motorcycle_id: formData.motorcycle_id,
           motorcycle_plate: formData.motorcycle_plate,
-          plan_id: formData.plan_id,
           start_date: formData.start_date
         });
         return;
+      }
+
+      // Validar se IDs são UUIDs válidos
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      
+      if (!uuidRegex.test(formData.motorcycle_id)) {
+        toast.error('Selecione uma motocicleta válida');
+        return;
+      }
+
+      if (formData.franchisee_id && !uuidRegex.test(formData.franchisee_id)) {
+        console.warn('Franchisee ID inválido, será omitido:', formData.franchisee_id);
       }
 
       // Obter dados necessários
@@ -380,56 +460,107 @@ export default function Locacoes() {
       // Criar dados da locação conforme esquema da tabela
       const rentalData: any = {
         client_name: formData.client_name,
-        client_email: formData.client_email,
-        client_phone: formData.client_phone,
+        client_email: formData.client_email || '',
+        client_phone: formData.client_phone || '',
         client_cpf: formData.client_cpf,
         motorcycle_id: formData.motorcycle_id,
-        motorcycle_plate: formData.motorcycle_plate,
-        franchisee_id: formData.franchisee_id,
-        plan_id: formData.plan_id,
+        motorcycle_plate: formData.motorcycle_plate || '',
         start_date: formData.start_date,
         total_days: totalDays,
         daily_rate: dailyRate,
         total_amount: parseFloat(formData.total_value) || (dailyRate * totalDays),
-        deposit_amount: parseFloat(formData.deposit_amount) || 0,
-        payment_status: 'pending', // Status padrão de pagamento
-        notes: formData.observations || '',
-        km_inicial: parseInt(formData.km_inicial) || 0,
-        km_final: parseInt(formData.km_final) || 0,
-        status: 'active' as const
+        status: 'active'
       };
 
-      // Só adicionar end_date se foi fornecida
+      // Adicionar campos opcionais apenas se tiverem valores válidos
       if (formData.end_date) {
         rentalData.end_date = formData.end_date;
       }
 
-      console.log('🔍 [Locacoes] Dados a serem enviados:', rentalData);
+      if (formData.franchisee_id && uuidRegex.test(formData.franchisee_id)) {
+        rentalData.franchisee_id = formData.franchisee_id;
+      }
 
-      // Salvar no Supabase
-      const { data, error } = await supabase
+      if (formData.deposit_amount) {
+        rentalData.deposit_amount = parseFloat(formData.deposit_amount);
+      }
+
+      if (formData.observations) {
+        rentalData.notes = formData.observations;
+      }
+
+      if (formData.km_inicial) {
+        rentalData.km_inicial = parseInt(formData.km_inicial);
+      }
+
+      if (formData.km_final) {
+        rentalData.km_final = parseInt(formData.km_final);
+      }
+
+      console.log('🔍 [Locacoes] Dados a serem enviados:', rentalData);
+      console.log('🔍 [Locacoes] FormData original:', {
+        motorcycle_id: formData.motorcycle_id,
+        franchisee_id: formData.franchisee_id,
+        plan_id: formData.plan_id
+      });
+
+      // Salvar locação no banco de dados
+      const { data: savedRental, error: saveError } = await (supabase as any)
         .from('rentals')
         .insert([rentalData])
-        .select();
+        .select()
+        .single();
 
-      if (error) {
-        console.error('🚨 [Locacoes] Erro detalhado ao salvar locação:', {
-          error,
-          errorCode: error.code,
-          errorMessage: error.message,
-          errorDetails: error.details,
-          dadosEnviados: rentalData
-        });
-        toast.error('Erro ao salvar locação: ' + error.message);
+      if (saveError) {
+        console.error('❌ [Locacoes] Erro ao salvar locação:', saveError);
+        toast.error('Erro ao salvar locação no banco de dados');
         return;
       }
 
-      console.log('✅ [Locacoes] Locação criada com sucesso:', data);
+      console.log('✅ [Locacoes] Locação salva com sucesso:', savedRental);
+
+      // Criar objeto para adicionar à lista local
+      const newRental: Rental = {
+        id: savedRental.id,
+        client_name: savedRental.client_name,
+        client_email: savedRental.client_email,
+        client_phone: savedRental.client_phone,
+        client_cpf: savedRental.client_cpf,
+        motorcycle_id: savedRental.motorcycle_id,
+        franchisee_id: savedRental.franchisee_id,
+        plan_id: savedRental.plan_id,
+        start_date: savedRental.start_date,
+        end_date: savedRental.end_date || '',
+        km_inicial: savedRental.km_inicial || 0,
+        km_final: savedRental.km_final || 0,
+        total_days: savedRental.total_days,
+        daily_rate: savedRental.daily_rate,
+        total_amount: savedRental.total_amount,
+        status: savedRental.status,
+        observations: savedRental.notes || '',
+        created_at: savedRental.created_at,
+        updated_at: savedRental.updated_at || savedRental.created_at
+      };
+
+      // Adicionar à lista de locações
+      setRentals(prev => [newRental, ...prev]);
+
+      // Enviar notificação por email
+      try {
+        await EmailService.sendRentalCreatedNotification({
+          ...newRental,
+          motorcycle_model: motorcycles.find(m => m.id === newRental.motorcycle_id)?.modelo || '',
+          motorcycle_plate: motorcycles.find(m => m.id === newRental.motorcycle_id)?.placa || ''
+        });
+        console.log('✅ [Locacoes] Email de confirmação enviado');
+      } catch (emailError) {
+        console.error('❌ [Locacoes] Erro ao enviar email:', emailError);
+        // Não falhar a criação da locação por causa do email
+      }
 
       toast.success('Locação criada com sucesso!');
       setIsDialogOpen(false);
       resetForm();
-      loadData(); // Recarregar dados
 
     } catch (error) {
       console.error('Erro ao criar locação:', error);
@@ -566,7 +697,7 @@ export default function Locacoes() {
                 />
                 {selectedClient && (
                   <p className="text-sm text-green-600">
-                    ✓ Cliente encontrado: {selectedClient.full_name}
+                    ✓ Cliente encontrado: {selectedClient.name}
                   </p>
                 )}
                 {cpfSearch && !selectedClient && cpfSearch.length >= 11 && (
@@ -891,7 +1022,10 @@ export default function Locacoes() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setSelectedRental(rental)}
+                          onClick={() => {
+                            setSelectedRental(rental);
+                            setIsDetailsDialogOpen(true);
+                          }}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -904,6 +1038,110 @@ export default function Locacoes() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal de Detalhes da Locação */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Locação</DialogTitle>
+            <DialogDescription>
+              Visualize os detalhes e gere documentos da locação
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRental && (
+            <div className="space-y-6">
+              {/* Informações da Locação */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Dados do Cliente</h3>
+                  <div className="space-y-2">
+                    <p><strong>Nome:</strong> {selectedRental.client_name}</p>
+                    <p><strong>CPF:</strong> {selectedRental.client_cpf}</p>
+                    <p><strong>Email:</strong> {selectedRental.client_email}</p>
+                    <p><strong>Telefone:</strong> {selectedRental.client_phone}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Dados da Motocicleta</h3>
+                  <div className="space-y-2">
+                    <p><strong>Modelo:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || 'N/A'}</p>
+                    <p><strong>Placa:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || 'N/A'}</p>
+                    <p><strong>Franqueado:</strong> {franchisees.find(f => f.id === selectedRental.franchisee_id)?.fantasy_name || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Dados da Locação</h3>
+                  <div className="space-y-2">
+                    <p><strong>Plano:</strong> {plans.find(p => p.id === selectedRental.plan_id)?.name || 'N/A'}</p>
+                    <p><strong>Período:</strong> {formatDate(selectedRental.start_date)} - {formatDate(selectedRental.end_date)}</p>
+                    <p><strong>Total de Dias:</strong> {selectedRental.total_days}</p>
+                    <p><strong>Diária:</strong> R$ {selectedRental.daily_rate}</p>
+                    <p><strong>Total:</strong> R$ {selectedRental.total_amount || 0}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Quilometragem</h3>
+                  <div className="space-y-2">
+                    <p><strong>KM Inicial:</strong> {selectedRental.km_inicial?.toLocaleString('pt-BR') || 'N/A'}</p>
+                    <p><strong>KM Final:</strong> {selectedRental.km_final?.toLocaleString('pt-BR') || 'Não informado'}</p>
+                    <p><strong>Status:</strong> {getStatusBadge(selectedRental.status)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {selectedRental.observations && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">Observações</h3>
+                  <p className="text-sm text-gray-600">{selectedRental.observations}</p>
+                </div>
+              )}
+
+              {/* Gerador de PDF */}
+              <div className="border-t pt-6">
+                <PDFGenerator
+                  rentalData={{
+                    ...selectedRental,
+                    motorcycle_model: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || '',
+                    motorcycle_plate: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || '',
+                    franchisee_name: franchisees.find(f => f.id === selectedRental.franchisee_id)?.fantasy_name || '',
+                    franchisee_cnpj: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cnpj || '',
+                    plan_name: plans.find(p => p.id === selectedRental.plan_id)?.name || '',
+                    plan_price: selectedRental.daily_rate * selectedRental.total_days
+                  }}
+                  onPDFGenerated={(url, type) => {
+                    console.log(`PDF ${type} gerado:`, url);
+                  }}
+                />
+              </div>
+
+              {/* Assinatura Eletrônica */}
+              <div className="border-t pt-6">
+                <DigitalSignature
+                  rentalData={{
+                    ...selectedRental,
+                    motorcycle_model: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || '',
+                    motorcycle_plate: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || '',
+                    franchisee_name: franchisees.find(f => f.id === selectedRental.franchisee_id)?.fantasy_name || '',
+                    franchisee_cnpj: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cnpj || '',
+                    plan_name: plans.find(p => p.id === selectedRental.plan_id)?.name || '',
+                    plan_price: selectedRental.daily_rate * selectedRental.total_days
+                  }}
+                  onSignatureRequested={(signatureRequest) => {
+                    console.log('Solicitação de assinatura criada:', signatureRequest);
+                    toast.success('Solicitação de assinatura enviada!');
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

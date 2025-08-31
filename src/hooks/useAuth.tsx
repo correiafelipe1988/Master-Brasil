@@ -46,13 +46,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data) {
-        setAppUser({
+        const appUserData = {
           id: data.id,
           email: data.email,
           role: data.role as 'admin' | 'master_br' | 'regional' | 'franchisee',
           city_id: data.city_id,
           city_name: (data.cities as any)?.name
-        });
+        };
+        
+        setAppUser(appUserData);
+        
+        // Cache user data in localStorage for persistence
+        try {
+          localStorage.setItem('app_user', JSON.stringify(appUserData));
+        } catch (e) {
+          console.error('Error caching user data:', e);
+        }
       }
     } catch (error) {
       console.error('Error fetching app user:', error);
@@ -62,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -80,7 +89,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting session:', error);
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -88,8 +101,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => {
           fetchAppUser(session.user.id);
         }, 0);
+      } else {
+        // Fallback: try to get cached user data from localStorage
+        try {
+          const cachedUser = localStorage.getItem('app_user');
+          if (cachedUser) {
+            const parsedUser = JSON.parse(cachedUser);
+            console.log('Using cached user data:', parsedUser);
+            setAppUser(parsedUser);
+          }
+        } catch (e) {
+          console.error('Error loading cached user:', e);
+        }
       }
       
+      setLoading(false);
+    }).catch(error => {
+      console.error('Error in getSession:', error);
       setLoading(false);
     });
 
@@ -118,6 +146,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // Clear cached user data
+    try {
+      localStorage.removeItem('app_user');
+    } catch (e) {
+      console.error('Error clearing user cache:', e);
+    }
+    
     await supabase.auth.signOut();
     setAppUser(null);
   };

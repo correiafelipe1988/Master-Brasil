@@ -533,14 +533,14 @@ export default function MotorcycleManagement() {
   // Filtros são controlados diretamente no state
 
   const handleSaveMotorcycle = useCallback(async (motorcycleData: Motorcycle) => {
-    const { id, ...dataToSave } = motorcycleData;
+    const { id } = motorcycleData;
     
     try {
       console.log('[MotorcycleManagement] Salvando moto:', motorcycleData);
       
       if (editingMotorcycle && id) {
         // Atualizar moto existente
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('motorcycles')
           .update({
             placa: motorcycleData.placa,
@@ -671,22 +671,6 @@ export default function MotorcycleManagement() {
     setEditingMotorcycle(null);
   }, []);
 
-  const handleUpdateMotorcycleStatus = useCallback(async (motorcycleId: string, newStatus: string) => {
-    try {
-      // Atualizar status da moto
-      toast({
-        title: "Status Atualizado!",
-        description: `O status da moto foi atualizado para ${newStatus}.`,
-      });
-    } catch (error: any) {
-      console.error("Erro ao atualizar status:", error);
-      toast({
-        title: "Erro ao Atualizar Status",
-        description: "Não foi possível atualizar o status da moto.",
-        variant: "destructive",
-      });
-    }
-  }, [toast]);
 
   const handleDeleteMotorcycle = useCallback(async (motorcycleId: string) => {
     // Franqueados não podem deletar motos
