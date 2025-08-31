@@ -474,33 +474,34 @@ export default function Dashboard() {
         // Construir query baseada no papel do usuário
         let query = supabase.from('motorcycles').select('*');
 
-        // TEMPORÁRIO: Remover filtros para debug - mostrar todas as motos
-        console.debug('[Dashboard] MODO DEBUG: Mostrando todas as motos sem filtros');
+        // Aplicar filtros baseados no papel do usuário
+        console.log('[Dashboard] Aplicando filtros para papel:', appUser.role, 'cidade:', appUser.city_id);
 
-        // Aplicar filtros baseados no papel do usuário (DESABILITADO PARA DEBUG)
-        /*
         switch (appUser.role) {
           case 'admin':
           case 'master_br':
             // Admin e Master BR veem todas as motos
+            console.log('[Dashboard] Usuário admin/master_br - mostrando todas as motos');
             break;
           case 'regional':
             // Regional vê apenas motos da sua cidade
             if (appUser.city_id) {
               query = query.eq('city_id', appUser.city_id);
+              console.log('[Dashboard] Usuário regional - filtrando por city_id:', appUser.city_id);
             }
             break;
           case 'franchisee':
             // Franchisee vê apenas suas motos
             query = query.eq('franchisee_id', appUser.id);
+            console.log('[Dashboard] Usuário franchisee - filtrando por franchisee_id:', appUser.id);
             break;
           default:
             // Caso padrão: filtrar por cidade se disponível
             if (appUser.city_id) {
               query = query.eq('city_id', appUser.city_id);
+              console.log('[Dashboard] Usuário padrão - filtrando por city_id:', appUser.city_id);
             }
         }
-        */
 
         query = query.order('created_at', { ascending: false });
 
