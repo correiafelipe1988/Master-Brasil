@@ -328,19 +328,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Aviso de dados em tempo real */}
-      <Card className="border-green-200 bg-green-50">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-            <p className="text-sm text-green-800">
-              <strong>Dados Conectados:</strong> Dashboard conectado à tabela 
-              <code className="mx-1 px-1 bg-green-200 rounded">motorcycles</code> 
-              do Supabase com filtros por usuário aplicados.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Cards de dados do dia (hoje) */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6">
