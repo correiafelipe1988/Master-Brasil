@@ -350,33 +350,61 @@ export default function Locacoes() {
     
     try {
       // Validações básicas
-      if (!formData.client_name || !formData.client_cpf || !formData.motorcycle_id || !formData.plan_id) {
+      if (!formData.client_name || !formData.client_cpf || !formData.motorcycle_id || !formData.motorcycle_plate || !formData.plan_id || !formData.start_date) {
         toast.error('Preencha todos os campos obrigatórios');
+        console.log('🚨 [Locacoes] Campos faltando:', {
+          client_name: formData.client_name,
+          client_cpf: formData.client_cpf,
+          motorcycle_id: formData.motorcycle_id,
+          motorcycle_plate: formData.motorcycle_plate,
+          plan_id: formData.plan_id,
+          start_date: formData.start_date
+        });
         return;
       }
 
-      // Criar dados da locação
+      // Obter dados necessários
+      const selectedPlan = plans.find(p => p.id === formData.plan_id);
+      const dailyRate = selectedPlan?.daily_rate || 0;
+      
+      // Calcular total de dias se temos as datas
+      let totalDays = 1;
+      if (formData.start_date && formData.end_date) {
+        const startDate = new Date(formData.start_date);
+        const endDate = new Date(formData.end_date);
+        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+        totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      }
+
+
+      // Criar dados da locação conforme esquema da tabela
       const rentalData: any = {
         client_name: formData.client_name,
         client_email: formData.client_email,
         client_phone: formData.client_phone,
         client_cpf: formData.client_cpf,
         motorcycle_id: formData.motorcycle_id,
+        motorcycle_plate: formData.motorcycle_plate,
         franchisee_id: formData.franchisee_id,
         plan_id: formData.plan_id,
         start_date: formData.start_date,
+        total_days: totalDays,
+        daily_rate: dailyRate,
+        total_amount: parseFloat(formData.total_value) || (dailyRate * totalDays),
+        deposit_amount: parseFloat(formData.deposit_amount) || 0,
+        payment_status: 'pending', // Status padrão de pagamento
+        notes: formData.observations || '',
         km_inicial: parseInt(formData.km_inicial) || 0,
         km_final: parseInt(formData.km_final) || 0,
-        total_amount: parseFloat(formData.total_value) || 0,
-        status: 'active' as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        status: 'active' as const
       };
 
       // Só adicionar end_date se foi fornecida
       if (formData.end_date) {
         rentalData.end_date = formData.end_date;
       }
+
+      console.log('🔍 [Locacoes] Dados a serem enviados:', rentalData);
 
       // Salvar no Supabase
       const { data, error } = await supabase
@@ -385,10 +413,18 @@ export default function Locacoes() {
         .select();
 
       if (error) {
-        console.error('Erro ao salvar locação:', error);
+        console.error('🚨 [Locacoes] Erro detalhado ao salvar locação:', {
+          error,
+          errorCode: error.code,
+          errorMessage: error.message,
+          errorDetails: error.details,
+          dadosEnviados: rentalData
+        });
         toast.error('Erro ao salvar locação: ' + error.message);
         return;
       }
+
+      console.log('✅ [Locacoes] Locação criada com sucesso:', data);
 
       toast.success('Locação criada com sucesso!');
       setIsDialogOpen(false);
