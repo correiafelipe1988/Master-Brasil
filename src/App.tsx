@@ -22,6 +22,15 @@ import Deals from "./pages/Deals";
 import MotorcycleManagement from "./pages/MotorcycleManagement";
 import VendaMotos from "./pages/VendaMotos";
 import ClientManagement from "./pages/ClientManagement";
+import ProjecaoCrescimento from "./pages/ProjecaoCrescimento";
+import Rastreadores from "./pages/Rastreadores";
+import DistratosLocacoes from "./pages/DistratosLocacoes";
+import Financeiro from "./pages/Financeiro";
+import PrevisaoOciosidade from "./pages/PrevisaoOciosidade";
+import Frota from "./pages/Frota";
+import Manutencao from "./pages/Manutencao";
+import AdminOverview from "./pages/AdminOverview";
+import CitiesManagement from "./pages/CitiesManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -114,19 +123,75 @@ const App = () => (
               </ProtectedRoute>
             } />
 
+            <Route path="/projecao" element={
+              <ProtectedRoute>
+                <Layout>
+                  <ProjecaoCrescimento />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/rastreadores" element={
+              <ProtectedRoute>
+                <Layout>
+                  <Rastreadores />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/distratos" element={
+              <ProtectedRoute>
+                <Layout>
+                  <DistratosLocacoes />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/financeiro" element={
+              <ProtectedRoute>
+                <Layout>
+                  <Financeiro />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/ociosidade" element={
+              <ProtectedRoute>
+                <Layout>
+                  <PrevisaoOciosidade />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/frota" element={
+              <ProtectedRoute>
+                <Layout>
+                  <Frota />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/manutencao" element={
+              <ProtectedRoute>
+                <Layout>
+                  <Manutencao />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
             {/* Admin routes */}
             <Route path="/admin" element={
               <ProtectedRoute requireRole="admin">
                 <Layout>
-                  <div>Admin Overview (Em construção)</div>
+                  <AdminOverview />
                 </Layout>
               </ProtectedRoute>
             } />
-            
+
             <Route path="/admin/cities" element={
               <ProtectedRoute requireRole="admin">
                 <Layout>
-                  <div>Cities Management (Em construção)</div>
+                  <CitiesManagement />
                 </Layout>
               </ProtectedRoute>
             } />
