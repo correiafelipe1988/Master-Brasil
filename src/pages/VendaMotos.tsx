@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, ShieldAlert, BarChart3, Users, Table, TrendingUp, Plus } from 'lucide-react';
+import { DollarSign, ShieldAlert, BarChart3, Users, Table, TrendingUp, Plus, Trash2, Edit } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +36,7 @@ export default function VendaMotos() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingVenda, setEditingVenda] = useState<VendaMoto | null>(null);
   const [formData, setFormData] = useState({
     data_compra: '',
     parceiro: '',
@@ -182,7 +183,7 @@ export default function VendaMotos() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedFranqueado) {
       toast({
         variant: "destructive",
@@ -216,15 +217,28 @@ export default function VendaMotos() {
         city_id: cityId
       };
 
-      const { error } = await supabase
-        .from('vendas')
-        .insert([vendaData]);
+      let error;
+
+      if (editingVenda) {
+        // Atualizar venda existente
+        const { error: updateError } = await supabase
+          .from('vendas')
+          .update(vendaData)
+          .eq('id', editingVenda.id);
+        error = updateError;
+      } else {
+        // Criar nova venda
+        const { error: insertError } = await supabase
+          .from('vendas')
+          .insert([vendaData]);
+        error = insertError;
+      }
 
       if (error) throw error;
 
       toast({
         title: "Sucesso!",
-        description: "Venda criada com sucesso."
+        description: editingVenda ? "Venda atualizada com sucesso." : "Venda criada com sucesso."
       });
 
       resetForm();
@@ -255,6 +269,61 @@ export default function VendaMotos() {
       valor_total: 0
     });
     setSelectedFranqueado('');
+    setEditingVenda(null);
+  };
+
+  const handleEdit = (venda: VendaMoto) => {
+    setEditingVenda(venda);
+    setFormData({
+      data_compra: venda.data_compra,
+      parceiro: venda.parceiro,
+      status: venda.status as 'PAGO' | 'PAGANDO' | 'PENDENTE',
+      entregue: venda.entregue,
+      franqueado: venda.franqueado,
+      cnpj: venda.cnpj,
+      razao_social: venda.razao_social,
+      quantidade: venda.quantidade,
+      marca: venda.marca,
+      modelo: venda.modelo,
+      valor_unitario: venda.valor_unitario,
+      valor_total: venda.valor_total
+    });
+
+    // Encontrar o franqueado correspondente
+    const franqueado = franqueados.find(f => f.fantasy_name === venda.franqueado);
+    if (franqueado) {
+      setSelectedFranqueado(franqueado.id);
+    }
+
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = async (vendaId: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta venda?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('vendas')
+        .delete()
+        .eq('id', vendaId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso!",
+        description: "Venda excluída com sucesso."
+      });
+
+      fetchVendas();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error.message || "Erro ao excluir venda."
+      });
+    }
   };
 
   const handleFranqueadoSelect = (franqueadoId: string) => {
@@ -365,8 +434,8 @@ export default function VendaMotos() {
         </TabsContent>
 
         <TabsContent value="dados">
-          <VendaMotosTable 
-            vendas={vendas} 
+          <VendaMotosTable
+            vendas={vendas}
             isDialogOpen={isDialogOpen}
             setIsDialogOpen={setIsDialogOpen}
             formData={formData}
@@ -375,6 +444,9 @@ export default function VendaMotos() {
             franqueados={franqueados}
             selectedFranqueado={selectedFranqueado}
             handleFranqueadoSelect={handleFranqueadoSelect}
+            editingVenda={editingVenda}
+            handleEdit={handleEdit}
+            handleDelete={handleDelete}
           />
         </TabsContent>
       </Tabs>
@@ -540,7 +612,7 @@ function AnaliseFranqueadoView({ vendas }: { vendas: VendaMoto[] }) {
 }
 
 // Componente Tabela de Vendas
-function VendaMotosTable({ 
+function VendaMotosTable({
   vendas,
   isDialogOpen,
   setIsDialogOpen,
@@ -549,8 +621,11 @@ function VendaMotosTable({
   handleSubmit,
   franqueados,
   selectedFranqueado,
-  handleFranqueadoSelect
-}: { 
+  handleFranqueadoSelect,
+  editingVenda,
+  handleEdit,
+  handleDelete
+}: {
   vendas: VendaMoto[];
   isDialogOpen: boolean;
   setIsDialogOpen: (open: boolean) => void;
@@ -560,6 +635,9 @@ function VendaMotosTable({
   franqueados: any[];
   selectedFranqueado: string;
   handleFranqueadoSelect: (franqueadoId: string) => void;
+  editingVenda: VendaMoto | null;
+  handleEdit: (venda: VendaMoto) => void;
+  handleDelete: (vendaId: string) => void;
 }) {
   return (
     <div className="space-y-6 mt-6">
@@ -580,9 +658,9 @@ function VendaMotosTable({
               </DialogTrigger>
               <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Adicionar Nova Venda</DialogTitle>
+                  <DialogTitle>{editingVenda ? 'Editar Venda' : 'Adicionar Nova Venda'}</DialogTitle>
                   <DialogDescription>
-                    Preencha as informações da venda abaixo.
+                    {editingVenda ? 'Atualize as informações da venda abaixo.' : 'Preencha as informações da venda abaixo.'}
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -755,11 +833,11 @@ function VendaMotosTable({
                   
                   <div className="flex gap-2 pt-4">
                     <Button type="submit" className="flex-1">
-                      Salvar Venda
+                      {editingVenda ? 'Atualizar Venda' : 'Salvar Venda'}
                     </Button>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => setIsDialogOpen(false)}
                     >
                       Cancelar
@@ -839,11 +917,21 @@ function VendaMotosTable({
                       </td>
                       <td className="p-3 border border-border">
                         <div className="flex gap-1">
-                          <button className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors">
-                            Ver
-                          </button>
-                          <button className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded hover:bg-gray-200 transition-colors">
+                          <button
+                            onClick={() => handleEdit(venda)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
+                            title="Editar venda"
+                          >
+                            <Edit className="h-3 w-3" />
                             Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(venda.id)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors"
+                            title="Apagar venda"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Apagar
                           </button>
                         </div>
                       </td>
