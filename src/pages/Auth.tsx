@@ -261,16 +261,9 @@ export default function Auth() {
               className="w-16 h-16 mr-3"
             />
             <div>
-              <h1 className="text-3xl font-bold text-slate-800">Master Salvador</h1>
+              <h1 className="text-3xl font-bold text-slate-800">Master Brasil</h1>
               <p className="text-gray-500 text-sm">Gestão de Locação</p>
             </div>
-          </div>
-          <div className="flex justify-center mb-4">
-            <img 
-              src="https://locagora.com.br/wp-content/uploads/2023/09/locagora.png" 
-              alt="Locagora" 
-              className="w-24 h-8 object-contain"
-            />
           </div>
         </div>
 
@@ -662,7 +655,7 @@ export default function Auth() {
             Sistema de Gestão de Motocicletas
           </div>
           <p className="text-gray-400 text-sm">
-            © 2024 Master Salvador - Todos os direitos reservados
+            © 2024 Master Brasil - Todos os direitos reservados
           </p>
         </div>
       </div>

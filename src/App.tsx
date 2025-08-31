@@ -112,7 +112,7 @@ const App = () => (
             } />
             
             <Route path="/franchisees" element={
-              <ProtectedRoute requireRole="regional">
+              <ProtectedRoute requireRole={["admin", "master_br", "regional"]}>
                 <Layout>
                   <FranchiseeManagement />
                 </Layout>

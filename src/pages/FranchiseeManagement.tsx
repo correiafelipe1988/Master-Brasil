@@ -10,6 +10,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Users, Grid3x3, TableIcon, Car, Settings, AlertTriangle, CheckCircle, Shield, Wifi, FileText, Bike, BarChart3, Wrench, Clock, XCircle, DollarSign, Zap, MapPin } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Franchisee {
   id: string;
@@ -32,6 +35,58 @@ interface City {
   name: string;
 }
 
+interface Motorcycle {
+  id: string;
+  placa: string;
+  modelo: string;
+  status: 'active' | 'alugada' | 'relocada' | 'manutencao' | 'recolhida' | 'indisponivel_rastreador' | 'indisponivel_emplacamento' | 'inadimplente' | 'renegociado' | 'furto_roubo';
+  data_ultima_mov?: string;
+  data_criacao?: string;
+  city_id?: string;
+  franchisee_id?: string;
+  franqueado?: string;
+}
+
+interface FranchiseeFleetStatus {
+  franqueadoName: string;
+  counts: {
+    alugada: number;
+    active: number; // Disponível
+    manutencao: number;
+    relocada: number;
+    renegociado: number;
+    recolhida: number;
+    inadimplente: number;
+    indisponivel_rastreador: number;
+    indisponivel_emplacamento: number;
+    furto_roubo: number;
+  };
+  totalGeral: number;
+  percentLocadas: number;
+  percentManutencao: number;
+  percentDisponivel: number;
+}
+
+interface CityFleetStatus {
+  cityName: string;
+  counts: {
+    alugada: number;
+    active: number; // Disponível
+    manutencao: number;
+    relocada: number;
+    renegociado: number;
+    recolhida: number;
+    inadimplente: number;
+    indisponivel_rastreador: number;
+    indisponivel_emplacamento: number;
+    furto_roubo: number;
+  };
+  totalGeral: number;
+  percentLocadas: number;
+  percentManutencao: number;
+  percentDisponivel: number;
+}
+
 export default function FranchiseeManagement() {
   const [franchisees, setFranchisees] = useState<Franchisee[]>([]);
   const [cities, setCities] = useState<City[]>([]);
@@ -40,10 +95,217 @@ export default function FranchiseeManagement() {
   const { appUser } = useAuth();
   const { toast } = useToast();
 
+  // Estados para a funcionalidade da frota
+  const [allMotorcycles, setAllMotorcycles] = useState<Motorcycle[]>([]);
+  const [processedData, setProcessedData] = useState<FranchiseeFleetStatus[]>([]);
+  const [cityProcessedData, setCityProcessedData] = useState<CityFleetStatus[]>([]);
+  const [selectedFranchisee, setSelectedFranchisee] = useState<string>("");
+  const [selectedCity, setSelectedCity] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+
   useEffect(() => {
     fetchFranchisees();
     fetchCities();
+    fetchMotorcyclesForFleet();
   }, []);
+
+  // useEffect para processar dados da frota
+  useEffect(() => {
+    if (isLoading) {
+      setProcessedData([]);
+      return;
+    }
+
+    // Filter logic
+    const filteredMotorcycles = allMotorcycles.filter(moto => {
+        const isFranchiseeMatch = !selectedFranchisee || (moto.franqueado?.toLowerCase().includes(selectedFranchisee.toLowerCase()));
+        
+        // Date filtering logic
+        const motoDate = moto.data_ultima_mov ? new Date(moto.data_ultima_mov) : null;
+        let isDateMatch = true;
+        if(startDate && endDate && motoDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            start.setHours(0,0,0,0);
+            end.setHours(23,59,59,999);
+            motoDate.setHours(0,0,0,0);
+            isDateMatch = motoDate >= start && motoDate <= end;
+        } else if (startDate && motoDate) {
+            const start = new Date(startDate);
+            start.setHours(0,0,0,0);
+            motoDate.setHours(0,0,0,0);
+            isDateMatch = motoDate >= start;
+        } else if (endDate && motoDate) {
+            const end = new Date(endDate);
+            end.setHours(23,59,59,999);
+            motoDate.setHours(0,0,0,0);
+            isDateMatch = motoDate <= end;
+        }
+
+        return isFranchiseeMatch && isDateMatch;
+    });
+
+    // Aplicar regra de placas únicas: considerar apenas a última atualização por placa
+    const uniqueMotorcyclesByPlaca: { [placa: string]: Motorcycle } = {};
+    filteredMotorcycles.forEach(moto => {
+      if (!moto.placa) return;
+      const existingMoto = uniqueMotorcyclesByPlaca[moto.placa];
+      if (!existingMoto ||
+          (moto.data_ultima_mov && existingMoto.data_ultima_mov && new Date(moto.data_ultima_mov) > new Date(existingMoto.data_ultima_mov)) ||
+          (moto.data_ultima_mov && !existingMoto.data_ultima_mov)) {
+        uniqueMotorcyclesByPlaca[moto.placa] = moto;
+      }
+    });
+    const representativeMotorcycles = Object.values(uniqueMotorcyclesByPlaca);
+
+    const franchiseeStats: Record<string, {
+      counts: { [K in Motorcycle['status']]: number } & { indefinido: number };
+      totalGeral: number;
+    }> = {};
+
+    representativeMotorcycles.forEach(moto => {
+      const frNameTrimmed = moto.franqueado?.trim();
+
+      if (!frNameTrimmed || frNameTrimmed === "Não Especificado" || frNameTrimmed === "") {
+        return;
+      }
+      
+      const frName = frNameTrimmed;
+
+      if (!franchiseeStats[frName]) {
+        franchiseeStats[frName] = {
+          counts: {
+            active: 0,
+            alugada: 0,
+            manutencao: 0,
+            relocada: 0,
+            renegociado: 0,
+            recolhida: 0,
+            inadimplente: 0,
+            indisponivel_rastreador: 0,
+            indisponivel_emplacamento: 0,
+            furto_roubo: 0,
+            indefinido: 0,
+          },
+          totalGeral: 0,
+        };
+      }
+
+      const status = moto.status;
+      if (status && ['active', 'alugada', 'manutencao', 'relocada', 'renegociado', 'recolhida', 'inadimplente', 'indisponivel_rastreador', 'indisponivel_emplacamento', 'furto_roubo'].includes(status)) {
+        franchiseeStats[frName].counts[status as Motorcycle['status']]++;
+      } else {
+        franchiseeStats[frName].counts.indefinido++;
+      }
+      franchiseeStats[frName].totalGeral++;
+    });
+
+    const dataForTable: FranchiseeFleetStatus[] = Object.entries(franchiseeStats).map(([name, stats]) => {
+      const totalLocadasCount = stats.counts.alugada + stats.counts.relocada + stats.counts.renegociado;
+      const percentLocadas = stats.totalGeral > 0 ? (totalLocadasCount / stats.totalGeral) * 100 : 0;
+      const percentManutencao = stats.totalGeral > 0 ? (stats.counts.manutencao / stats.totalGeral) * 100 : 0;
+      const percentDisponivel = stats.totalGeral > 0 ? (stats.counts.active / stats.totalGeral) * 100 : 0;
+      
+      return {
+        franqueadoName: name,
+        counts: {
+          alugada: stats.counts.alugada,
+          active: stats.counts.active,
+          manutencao: stats.counts.manutencao,
+          relocada: stats.counts.relocada,
+          renegociado: stats.counts.renegociado,
+          recolhida: stats.counts.recolhida,
+          inadimplente: stats.counts.inadimplente,
+          indisponivel_rastreador: stats.counts.indisponivel_rastreador,
+          indisponivel_emplacamento: stats.counts.indisponivel_emplacamento,
+          furto_roubo: stats.counts.furto_roubo,
+        },
+        totalGeral: stats.totalGeral,
+        percentLocadas,
+        percentManutencao,
+        percentDisponivel,
+      };
+    }).sort((a, b) => b.totalGeral - a.totalGeral); 
+
+    setProcessedData(dataForTable);
+
+    // Processar dados por cidade para a aba Operações
+    const cityStats: Record<string, {
+      counts: { [K in Motorcycle['status']]: number } & { indefinido: number };
+      totalGeral: number;
+    }> = {};
+
+    representativeMotorcycles.forEach(moto => {
+      // Buscar o nome da cidade
+      const city = cities.find(c => c.id === moto.city_id);
+      const cityName = city ? city.name : 'Cidade Não Identificada';
+
+      if (!cityStats[cityName]) {
+        cityStats[cityName] = {
+          counts: {
+            active: 0,
+            alugada: 0,
+            manutencao: 0,
+            relocada: 0,
+            renegociado: 0,
+            recolhida: 0,
+            inadimplente: 0,
+            indisponivel_rastreador: 0,
+            indisponivel_emplacamento: 0,
+            furto_roubo: 0,
+            indefinido: 0,
+          },
+          totalGeral: 0,
+        };
+      }
+
+      const status = moto.status;
+      if (status && ['active', 'alugada', 'manutencao', 'relocada', 'renegociado', 'recolhida', 'inadimplente', 'indisponivel_rastreador', 'indisponivel_emplacamento', 'furto_roubo'].includes(status)) {
+        cityStats[cityName].counts[status as Motorcycle['status']]++;
+      } else {
+        cityStats[cityName].counts.indefinido++;
+      }
+      cityStats[cityName].totalGeral++;
+    });
+
+    const dataForCities: CityFleetStatus[] = Object.entries(cityStats).map(([name, stats]) => {
+      const totalLocadasCount = stats.counts.alugada + stats.counts.relocada + stats.counts.renegociado;
+      const percentLocadas = stats.totalGeral > 0 ? (totalLocadasCount / stats.totalGeral) * 100 : 0;
+      const percentManutencao = stats.totalGeral > 0 ? (stats.counts.manutencao / stats.totalGeral) * 100 : 0;
+      const percentDisponivel = stats.totalGeral > 0 ? (stats.counts.active / stats.totalGeral) * 100 : 0;
+      
+      return {
+        cityName: name,
+        counts: {
+          alugada: stats.counts.alugada,
+          active: stats.counts.active,
+          manutencao: stats.counts.manutencao,
+          relocada: stats.counts.relocada,
+          renegociado: stats.counts.renegociado,
+          recolhida: stats.counts.recolhida,
+          inadimplente: stats.counts.inadimplente,
+          indisponivel_rastreador: stats.counts.indisponivel_rastreador,
+          indisponivel_emplacamento: stats.counts.indisponivel_emplacamento,
+          furto_roubo: stats.counts.furto_roubo,
+        },
+        totalGeral: stats.totalGeral,
+        percentLocadas,
+        percentManutencao,
+        percentDisponivel,
+      };
+    }).sort((a, b) => b.totalGeral - a.totalGeral);
+
+    setCityProcessedData(dataForCities);
+
+  }, [allMotorcycles, isLoading, selectedFranchisee, selectedCity, startDate, endDate, cities]);
+
+  // useEffect para recarregar dados quando o usuário estiver disponível
+  useEffect(() => {
+    if (appUser) {
+      fetchMotorcyclesForFleet();
+    }
+  }, [appUser]);
 
   const fetchCities = async () => {
     try {
@@ -56,6 +318,112 @@ export default function FranchiseeManagement() {
       setCities(data || []);
     } catch (error: any) {
       console.error('Erro ao buscar cidades:', error);
+    }
+  };
+
+  const fetchMotorcyclesForFleet = async () => {
+    try {
+      console.log('[FranchiseeManagement] Buscando dados das motos para análise da frota...');
+      
+      // Primeiro, buscar dados dos franqueados para criar o mapeamento
+      const { data: franchiseesData, error: franchiseesError } = await supabase
+        .from('franchisees')
+        .select('id, company_name, fantasy_name, user_id');
+
+      if (franchiseesError) {
+        console.error('[FranchiseeManagement] Erro ao buscar franqueados:', franchiseesError);
+      }
+
+      // Criar mapeamento de user_id para nome do franqueado
+      const franchiseeMap: Record<string, string> = {};
+      franchiseesData?.forEach(franchisee => {
+        if (franchisee.user_id) {
+          const name = franchisee.fantasy_name || franchisee.company_name;
+          franchiseeMap[franchisee.user_id] = name;
+        }
+      });
+
+      console.log('[FranchiseeManagement] Mapeamento de franqueados:', franchiseeMap);
+      
+      // Construir query baseada no papel do usuário
+      let query = supabase.from('motorcycles').select('*');
+
+      // Aplicar filtros baseados no papel do usuário
+      switch (appUser?.role) {
+        case 'admin':
+        case 'master_br':
+          // Admin e Master BR veem todas as motos
+          console.log('[FranchiseeManagement] Usuário admin/master_br - mostrando todas as motos');
+          break;
+        case 'regional':
+          // Regional vê apenas motos da sua cidade
+          if (appUser.city_id) {
+            query = query.eq('city_id', appUser.city_id);
+            console.log('[FranchiseeManagement] Filtrando por city_id:', appUser.city_id);
+          }
+          break;
+        default:
+          console.log('[FranchiseeManagement] Papel de usuário:', appUser?.role);
+      }
+
+      query = query.order('created_at', { ascending: false });
+
+      const { data: motorcycles, error } = await query;
+
+      if (error) {
+        console.error('[FranchiseeManagement] Erro ao buscar motos:', error);
+        return;
+      }
+
+      console.log('[FranchiseeManagement] Dados das motos carregados:', motorcycles?.length || 0, 'motos');
+
+      // Converter dados para o formato esperado
+      const formattedMotorcycles: Motorcycle[] = (motorcycles || []).map((moto: any) => {
+        // Determinar o nome do franqueado baseado nos dados disponíveis
+        let franqueadoName = 'Não Especificado';
+        
+        // 1. Priorizar o campo franqueado direto se existir
+        if (moto.franqueado && moto.franqueado.trim() !== '') {
+          franqueadoName = moto.franqueado.trim();
+        }
+        // 2. Buscar pelo franchisee_id no mapeamento
+        else if (moto.franchisee_id && franchiseeMap[moto.franchisee_id]) {
+          franqueadoName = franchiseeMap[moto.franchisee_id];
+        }
+        // 3. Se tem franchisee_id mas não encontrou no mapeamento
+        else if (moto.franchisee_id) {
+          franqueadoName = `Franqueado ID: ${moto.franchisee_id}`;
+        }
+
+        return {
+          id: moto.id,
+          placa: moto.placa || '',
+          modelo: moto.modelo || '',
+          status: (['active', 'alugada', 'relocada', 'manutencao', 'recolhida', 'indisponivel_rastreador', 'indisponivel_emplacamento', 'inadimplente', 'renegociado', 'furto_roubo'].includes(moto.status) 
+            ? moto.status as Motorcycle['status'] 
+            : 'active'),
+          data_ultima_mov: moto.data_ultima_mov,
+          data_criacao: moto.data_criacao || moto.created_at,
+          city_id: moto.city_id,
+          franchisee_id: moto.franchisee_id,
+          franqueado: franqueadoName
+        };
+      });
+
+      console.log('[FranchiseeManagement] Motos formatadas:', formattedMotorcycles.length);
+      console.log('[FranchiseeManagement] Franqueados únicos encontrados:', 
+        Array.from(new Set(formattedMotorcycles.map(m => m.franqueado))).filter(f => f !== 'Não Especificado')
+      );
+
+      setAllMotorcycles(formattedMotorcycles);
+
+    } catch (error) {
+      console.error('[FranchiseeManagement] Erro ao carregar dados da frota:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Erro ao carregar dados da frota."
+      });
     }
   };
 
@@ -145,22 +513,189 @@ export default function FranchiseeManagement() {
     return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
   };
 
+  // Função para obter configurações de estilo para cada status
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { 
+      label: string; 
+      description: string; 
+      bgColor: string; 
+      borderColor: string; 
+      iconBg: string; 
+      textColor: string; 
+      icon: any; 
+    }> = {
+      'active': { 
+        label: 'Disponível', 
+        description: 'Pronta para uso', 
+        bgColor: 'bg-green-50', 
+        borderColor: 'border-green-500', 
+        iconBg: 'bg-green-100', 
+        textColor: 'text-green-600', 
+        icon: CheckCircle 
+      },
+      'alugada': { 
+        label: 'Alugada', 
+        description: 'Em operação', 
+        bgColor: 'bg-blue-50', 
+        borderColor: 'border-blue-500', 
+        iconBg: 'bg-blue-100', 
+        textColor: 'text-blue-600', 
+        icon: Car 
+      },
+      'relocada': { 
+        label: 'Relocada', 
+        description: 'Em realocação', 
+        bgColor: 'bg-cyan-50', 
+        borderColor: 'border-cyan-500', 
+        iconBg: 'bg-cyan-100', 
+        textColor: 'text-cyan-600', 
+        icon: MapPin 
+      },
+      'manutencao': { 
+        label: 'Manutenção', 
+        description: 'Em oficina', 
+        bgColor: 'bg-purple-50', 
+        borderColor: 'border-purple-500', 
+        iconBg: 'bg-purple-100', 
+        textColor: 'text-purple-600', 
+        icon: Wrench 
+      },
+      'recolhida': { 
+        label: 'Recolhida', 
+        description: 'Aguardando', 
+        bgColor: 'bg-orange-50', 
+        borderColor: 'border-orange-500', 
+        iconBg: 'bg-orange-100', 
+        textColor: 'text-orange-600', 
+        icon: AlertTriangle 
+      },
+      'renegociado': { 
+        label: 'Renegociado', 
+        description: 'Em renegociação', 
+        bgColor: 'bg-yellow-50', 
+        borderColor: 'border-yellow-500', 
+        iconBg: 'bg-yellow-100', 
+        textColor: 'text-yellow-600', 
+        icon: DollarSign 
+      },
+      'inadimplente': { 
+        label: 'Inadimplente', 
+        description: 'Pagamento pendente', 
+        bgColor: 'bg-red-50', 
+        borderColor: 'border-red-500', 
+        iconBg: 'bg-red-100', 
+        textColor: 'text-red-600', 
+        icon: XCircle 
+      },
+      'indisponivel_rastreador': { 
+        label: 'Indisponível - Rastreador', 
+        description: 'Problema no rastreador', 
+        bgColor: 'bg-gray-50', 
+        borderColor: 'border-gray-500', 
+        iconBg: 'bg-gray-100', 
+        textColor: 'text-gray-600', 
+        icon: Wifi 
+      },
+      'indisponivel_emplacamento': { 
+        label: 'Indisponível - Emplacamento', 
+        description: 'Problema na documentação', 
+        bgColor: 'bg-slate-50', 
+        borderColor: 'border-slate-500', 
+        iconBg: 'bg-slate-100', 
+        textColor: 'text-slate-600', 
+        icon: FileText 
+      },
+      'furto_roubo': { 
+        label: 'Furto/Roubo', 
+        description: 'Ocorrência registrada', 
+        bgColor: 'bg-rose-50', 
+        borderColor: 'border-rose-500', 
+        iconBg: 'bg-rose-100', 
+        textColor: 'text-rose-600', 
+        icon: Shield 
+      }
+    };
+
+    return configs[status] || { 
+      label: status.charAt(0).toUpperCase() + status.slice(1), 
+      description: 'Status não definido', 
+      bgColor: 'bg-neutral-50', 
+      borderColor: 'border-neutral-500', 
+      iconBg: 'bg-neutral-100', 
+      textColor: 'text-neutral-600', 
+      icon: Clock 
+    };
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
+      {/* Header */}
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>Gestão de Franqueados</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-6 w-6" />
+                Franqueados - Análise por franqueado
+              </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Cadastre e gerencie franqueados da sua região
+                Cadastre e analise a performance dos franqueados da sua região
               </p>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>Cadastrar Franqueado</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Tabs defaultValue="cadastro" className="w-full">
+        <TabsList className={`grid w-full ${appUser?.role === 'admin' || appUser?.role === 'master_br' ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <TabsTrigger value="cadastro" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Cadastro
+          </TabsTrigger>
+          <TabsTrigger value="frota-tabela" className="flex items-center gap-2">
+            <TableIcon className="h-4 w-4" />
+            Frota - Tabela
+          </TabsTrigger>
+          <TabsTrigger value="frota-cards" className="flex items-center gap-2">
+            <Grid3x3 className="h-4 w-4" />
+            Frota - Cards
+          </TabsTrigger>
+          {(appUser?.role === 'admin' || appUser?.role === 'master_br') && (
+            <TabsTrigger value="operacoes" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Operações
+            </TabsTrigger>
+          )}
+        </TabsList>
+        
+        <TabsContent value="cadastro">{renderCadastroContent()}</TabsContent>
+        <TabsContent value="frota-tabela">{renderFrotaTabelaContent()}</TabsContent>
+        <TabsContent value="frota-cards">{renderFrotaCardsContent()}</TabsContent>
+        {(appUser?.role === 'admin' || appUser?.role === 'master_br') && (
+          <TabsContent value="operacoes">{renderOperacoesContent()}</TabsContent>
+        )}
+      </Tabs>
+    </div>
+  );
+
+  // Função para renderizar o conteúdo da aba Cadastro (conteúdo original)
+  function renderCadastroContent() {
+    return (
+      <div className="space-y-6 mt-6">
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Gestão de Franqueados</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Cadastre e gerencie franqueados da sua região
+                </p>
+              </div>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>Cadastrar Franqueado</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Novo Franqueado</DialogTitle>
                 </DialogHeader>
@@ -283,7 +818,392 @@ export default function FranchiseeManagement() {
             </ul>
           </div>
         </CardContent>
-      </Card>
-    </div>
-  );
+        </Card>
+      </div>
+    );
+  }
+
+  // Função para renderizar o conteúdo da aba Frota - Tabela
+  function renderFrotaTabelaContent() {
+    return (
+      <div className="space-y-6 mt-6">
+        <Card className="mb-6 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="franchisee-search">Franqueado</Label>
+              <Input
+                id="franchisee-search"
+                placeholder="Buscar por franqueado"
+                value={selectedFranchisee}
+                onChange={e => setSelectedFranchisee(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <Label htmlFor="start-date">Data de Início</Label>
+              <Input
+                type="date"
+                id="start-date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="end-date">Data de Fim</Label>
+              <Input
+                type="date"
+                id="end-date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-headline">
+              <Bike className="h-6 w-6 text-primary" />
+              Status da Frota por Franqueado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {processedData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-border rounded-lg min-h-[300px] bg-muted/50">
+                <Users className="h-24 w-24 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground text-center">
+                  Nenhum dado encontrado para os filtros selecionados.
+                  <br />
+                  Configure a integração com dados reais da frota para visualizar as análises.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-6 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-left">Franqueado</TableHead>
+                      <TableHead className="text-right">Alugada</TableHead>
+                      <TableHead className="text-right">Disponível</TableHead>
+                      <TableHead className="text-right">Manutenção</TableHead>
+                      <TableHead className="text-right">Relocada</TableHead>
+                      <TableHead className="text-right font-semibold">Total Geral</TableHead>
+                      <TableHead className="text-right">
+                        <div className="text-xs text-muted-foreground">Meta 91%</div>
+                        <div>Locadas</div>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <div className="text-xs text-muted-foreground">Meta &lt; 5%</div>
+                        <div>Manutenção</div>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <div className="text-xs text-muted-foreground">Meta &gt; 4,5%</div>
+                        <div>Disponível</div>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {processedData.map((item) => (
+                      <TableRow key={item.franqueadoName}>
+                        <TableCell className="text-left font-medium">{item.franqueadoName}</TableCell>
+                        <TableCell className="text-right">{item.counts.alugada}</TableCell>
+                        <TableCell className="text-right">{item.counts.active}</TableCell>
+                        <TableCell className="text-right">{item.counts.manutencao}</TableCell>
+                        <TableCell className="text-right">{item.counts.relocada}</TableCell>
+                        <TableCell className="text-right font-bold">{item.totalGeral}</TableCell>
+                        <TableCell
+                          className={cn(
+                            "text-right font-medium",
+                            item.percentLocadas >= 91
+                              ? "bg-green-100 text-green-700"
+                              : item.percentLocadas >= 85
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-red-100 text-red-700"
+                          )}
+                        >
+                          {item.percentLocadas.toFixed(1)}%
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "text-right font-medium",
+                            item.percentManutencao > 5
+                              ? "bg-red-100 text-red-700"
+                              : item.percentManutencao >= 3
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-green-100 text-green-700"
+                          )}
+                        >
+                          {item.percentManutencao.toFixed(1)}%
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "text-right font-medium",
+                            item.percentDisponivel < 4.5
+                              ? "bg-green-100 text-green-700"
+                              : item.percentDisponivel <= 7
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-red-100 text-red-700"
+                          )}
+                        >
+                          {item.percentDisponivel.toFixed(1)}%
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Função para renderizar o conteúdo da aba Frota - Cards
+  function renderFrotaCardsContent() {
+    return (
+      <div className="space-y-6 mt-6">
+        <Card className="mb-6 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="franchisee-search-cards">Franqueado</Label>
+              <Input
+                id="franchisee-search-cards"
+                placeholder="Buscar por franqueado"
+                value={selectedFranchisee}
+                onChange={e => setSelectedFranchisee(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <Label htmlFor="start-date-cards">Data de Início</Label>
+              <Input
+                type="date"
+                id="start-date-cards"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="end-date-cards">Data de Fim</Label>
+              <Input
+                type="date"
+                id="end-date-cards"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-headline">
+              <Bike className="h-6 w-6 text-primary" />
+              Status da Frota por Franqueado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {processedData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-border rounded-lg min-h-[300px] bg-muted/50">
+                <Users className="h-24 w-24 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground text-center">
+                  Nenhum dado encontrado para os filtros selecionados.
+                  <br />
+                  Configure a integração com dados reais da frota para visualizar as análises.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {processedData.map((item) => (
+                  <Card key={item.franqueadoName} className="shadow-md hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-white to-gray-50">
+                    <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white pb-4">
+                      <CardTitle className="text-lg font-bold text-center flex items-center justify-center gap-2">
+                        <Bike className="h-5 w-5" />
+                        {item.franqueadoName}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="space-y-3">
+                        {/* Renderizar dinamicamente todos os status com contagem > 0 */}
+                        {Object.entries(item.counts)
+                          .filter(([status, count]) => count > 0)
+                          .map(([status, count]) => {
+                            const config = getStatusConfig(status);
+                            const Icon = config.icon;
+                            const percentage = item.totalGeral > 0 ? ((count / item.totalGeral) * 100).toFixed(0) : 0;
+                            
+                            return (
+                              <div key={status} className={`flex items-center justify-between p-3 ${config.bgColor} rounded-lg border-l-4 ${config.borderColor}`}>
+                                <div className="flex items-center gap-3">
+                                  <div className={`p-2 ${config.iconBg} rounded-full`}>
+                                    <Icon className={`h-4 w-4 ${config.textColor}`} />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-gray-800">{config.label}</p>
+                                    <p className="text-sm text-gray-600">{config.description}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className={`text-2xl font-bold ${config.textColor}`}>{count}</div>
+                                  <div className={`text-sm font-medium ${config.textColor}`}>
+                                    {percentage}%
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                        {/* Total */}
+                        <div className="flex items-center justify-between p-4 bg-gray-100 rounded-lg border-2 border-gray-300 mt-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gray-200 rounded-full">
+                              <Bike className="h-4 w-4 text-gray-600" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-800">TOTAL GERAL</p>
+                              <p className="text-sm text-gray-600">Toda a frota</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-3xl font-bold text-gray-800">{item.totalGeral}</div>
+                            <div className="text-sm font-medium text-gray-600">100%</div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Função para renderizar o conteúdo da aba Operações (cópia da aba Frota Cards, mas agrupada por cidade)
+  function renderOperacoesContent() {
+    return (
+      <div className="space-y-6 mt-6">
+        <Card className="mb-6 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="city-search-operacoes">Cidade</Label>
+              <Input
+                id="city-search-operacoes"
+                placeholder="Buscar por cidade"
+                value={selectedCity}
+                onChange={e => setSelectedCity(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <Label htmlFor="start-date-operacoes">Data de Início</Label>
+              <Input
+                type="date"
+                id="start-date-operacoes"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="end-date-operacoes">Data de Fim</Label>
+              <Input
+                type="date"
+                id="end-date-operacoes"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-headline">
+              <Settings className="h-6 w-6 text-primary" />
+              Operações - Status da Frota por Cidade
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {cityProcessedData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-border rounded-lg min-h-[300px] bg-muted/50">
+                <Settings className="h-24 w-24 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground text-center">
+                  Nenhum dado encontrado para os filtros selecionados.
+                  <br />
+                  Configure a integração com dados reais da frota para visualizar as análises.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {cityProcessedData
+                  .filter(item => !selectedCity || item.cityName.toLowerCase().includes(selectedCity.toLowerCase()))
+                  .map((item) => (
+                  <Card key={item.cityName} className="shadow-md hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-white to-gray-50">
+                    <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white pb-4">
+                      <CardTitle className="text-lg font-bold text-center flex items-center justify-center gap-2">
+                        <Settings className="h-5 w-5" />
+                        {item.cityName}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="space-y-3">
+                        {/* Renderizar dinamicamente todos os status com contagem > 0 */}
+                        {Object.entries(item.counts)
+                          .filter(([status, count]) => count > 0)
+                          .map(([status, count]) => {
+                            const config = getStatusConfig(status);
+                            const Icon = config.icon;
+                            const percentage = item.totalGeral > 0 ? ((count / item.totalGeral) * 100).toFixed(0) : 0;
+                            
+                            return (
+                              <div key={status} className={`flex items-center justify-between p-3 ${config.bgColor} rounded-lg border-l-4 ${config.borderColor}`}>
+                                <div className="flex items-center gap-3">
+                                  <div className={`p-2 ${config.iconBg} rounded-full`}>
+                                    <Icon className={`h-4 w-4 ${config.textColor}`} />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-gray-800">{config.label}</p>
+                                    <p className="text-sm text-gray-600">{config.description}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className={`text-2xl font-bold ${config.textColor}`}>{count}</div>
+                                  <div className={`text-sm font-medium ${config.textColor}`}>
+                                    {percentage}%
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                        {/* Total */}
+                        <div className="flex items-center justify-between p-4 bg-gray-100 rounded-lg border-2 border-gray-300 mt-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gray-200 rounded-full">
+                              <Bike className="h-4 w-4 text-gray-600" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-800">TOTAL GERAL</p>
+                              <p className="text-sm text-gray-600">Toda a frota</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-3xl font-bold text-gray-800">{item.totalGeral}</div>
+                            <div className="text-sm font-medium text-gray-600">100%</div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 }

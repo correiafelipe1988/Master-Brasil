@@ -26,7 +26,7 @@ interface Motorcycle {
   id: string;
   placa: string;
   modelo: string;
-  status: 'active' | 'alugada' | 'relocada' | 'manutencao' | 'recolhida' | 'indisponivel_rastreador' | 'indisponivel_emplacamento';
+  status: 'active' | 'alugada' | 'relocada' | 'manutencao' | 'recolhida' | 'indisponivel_rastreador' | 'indisponivel_emplacamento' | 'inadimplente' | 'renegociado' | 'furto_roubo';
   codigo_cs?: string;
   tipo?: 'Nova' | 'Usada';
   valor_semanal?: number;
@@ -147,7 +147,10 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
     { value: 'manutencao', label: 'Manutenção' },
     { value: 'recolhida', label: 'Recolhida' },
     { value: 'indisponivel_rastreador', label: 'Indisponível - Rastreador' },
-    { value: 'indisponivel_emplacamento', label: 'Indisponível - Emplacamento' }
+    { value: 'indisponivel_emplacamento', label: 'Indisponível - Emplacamento' },
+    { value: 'inadimplente', label: 'Inadimplente' },
+    { value: 'renegociado', label: 'Renegociado' },
+    { value: 'furto_roubo', label: 'Furto/Roubo' }
   ];
 
   const modeloOptions = [
@@ -826,6 +829,9 @@ export default function MotorcycleManagement() {
                 <option value="recolhida">Recolhida</option>
                 <option value="indisponivel_rastreador">Indisponível - Rastreador</option>
                 <option value="indisponivel_emplacamento">Indisponível - Emplacamento</option>
+                <option value="inadimplente">Inadimplente</option>
+                <option value="renegociado">Renegociado</option>
+                <option value="furto_roubo">Furto/Roubo</option>
               </select>
             </div>
             <div>
@@ -900,14 +906,26 @@ export default function MotorcycleManagement() {
                         <span className={`inline-block px-2 py-1 text-xs rounded-full font-medium ${
                           motorcycle.status === 'active' ? 'bg-green-100 text-green-800' :
                           motorcycle.status === 'alugada' ? 'bg-blue-100 text-blue-800' :
-                          motorcycle.status === 'relocada' ? 'bg-blue-100 text-blue-800' :
-                          motorcycle.status === 'manutencao' ? 'bg-orange-100 text-orange-800' :
-                          'bg-gray-100 text-gray-800'
+                          motorcycle.status === 'relocada' ? 'bg-cyan-100 text-cyan-800' :
+                          motorcycle.status === 'manutencao' ? 'bg-purple-100 text-purple-800' :
+                          motorcycle.status === 'recolhida' ? 'bg-orange-100 text-orange-800' :
+                          motorcycle.status === 'renegociado' ? 'bg-yellow-100 text-yellow-800' :
+                          motorcycle.status === 'inadimplente' ? 'bg-red-100 text-red-800' :
+                          motorcycle.status === 'indisponivel_rastreador' ? 'bg-gray-100 text-gray-800' :
+                          motorcycle.status === 'indisponivel_emplacamento' ? 'bg-slate-100 text-slate-800' :
+                          motorcycle.status === 'furto_roubo' ? 'bg-rose-100 text-rose-800' :
+                          'bg-neutral-100 text-neutral-800'
                         }`}>
                           {motorcycle.status === 'active' ? 'Disponível' :
                            motorcycle.status === 'alugada' ? 'Alugada' :
                            motorcycle.status === 'relocada' ? 'Relocada' :
                            motorcycle.status === 'manutencao' ? 'Manutenção' :
+                           motorcycle.status === 'recolhida' ? 'Recolhida' :
+                           motorcycle.status === 'renegociado' ? 'Renegociado' :
+                           motorcycle.status === 'inadimplente' ? 'Inadimplente' :
+                           motorcycle.status === 'indisponivel_rastreador' ? 'Indisponível - Rastreador' :
+                           motorcycle.status === 'indisponivel_emplacamento' ? 'Indisponível - Emplacamento' :
+                           motorcycle.status === 'furto_roubo' ? 'Furto/Roubo' :
                            motorcycle.status}
                         </span>
                       </td>

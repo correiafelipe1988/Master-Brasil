@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboard } from '@/contexts/DashboardContext';
+import { useFleetData } from '@/hooks/useFleetData';
 import { useToast } from '@/hooks/use-toast';
 
 interface LayoutProps {
@@ -32,6 +33,7 @@ export function Layout({ children }: LayoutProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { appUser, signOut } = useAuth();
   const { dashboardData } = useDashboard();
+  const { fleetStats } = useFleetData();
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
@@ -262,7 +264,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-gray-500">Placas únicas</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">{dashboardData?.kpi?.total || '532'}</span>
+                    <span className="text-lg font-bold">{fleetStats?.total || dashboardData?.kpi?.total || '532'}</span>
                   </div>
                 </div>
 
@@ -280,7 +282,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-green-600">Motos prontas</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">{dashboardData?.monthData?.motosDisponiveis || '50'}</span>
+                    <span className="text-lg font-bold">{fleetStats?.disponiveis || dashboardData?.monthData?.motosDisponiveis || '0'}</span>
                   </div>
                 </div>
 
@@ -296,7 +298,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-blue-600">Em uso</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">{(dashboardData?.monthData?.motosAlugadas || 0) + (dashboardData?.monthData?.motosRelocadas || 0) || '447'}</span>
+                    <span className="text-lg font-bold">{fleetStats?.alugadas || (dashboardData?.monthData?.motosAlugadas || 0) + (dashboardData?.monthData?.motosRelocadas || 0) || '0'}</span>
                   </div>
                 </div>
 
@@ -312,7 +314,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-purple-600">Em oficina</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">{dashboardData?.monthData?.emManutencao || '29'}</span>
+                    <span className="text-lg font-bold">{fleetStats?.manutencao || dashboardData?.monthData?.emManutencao || '0'}</span>
                   </div>
                 </div>
 
@@ -328,7 +330,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-orange-600">Aguardando</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">{dashboardData?.monthData?.motosRecuperadas || '1'}</span>
+                    <span className="text-lg font-bold">{fleetStats?.recolhidas || dashboardData?.monthData?.motosRecuperadas || '0'}</span>
                   </div>
                 </div>
               </div>
