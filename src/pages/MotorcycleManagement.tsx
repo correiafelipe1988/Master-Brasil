@@ -35,7 +35,13 @@ interface Motorcycle {
   city_id?: string;
   franchisee_id?: string;
   franchisee?: {
-    company_name: string;
+    id: string;
+    email: string;
+    role: string;
+    franchisee_data?: Array<{
+      company_name: string;
+      fantasy_name: string;
+    }>;
   };
   observacoes?: string;
   created_at?: string;
@@ -70,19 +76,35 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
     codigo_cs: editingMotorcycle?.codigo_cs || '',
   });
 
-  const [franchisees, setFranchisees] = useState<Array<{id: string, company_name: string, fantasy_name: string}>>([]);
+  const [franchisees, setFranchisees] = useState<Array<{
+    id: string,
+    email: string,
+    role: string,
+    franchisee_data?: Array<{
+      company_name: string;
+      fantasy_name: string;
+    }>
+  }>>([]);
 
   // Buscar franqueados da cidade atual
   useEffect(() => {
     const fetchFranchisees = async () => {
       if (!appUser?.city_id) return;
-      
+
       try {
         const { data, error } = await supabase
-          .from('franchisees')
-          .select('id, company_name, fantasy_name')
+          .from('app_users')
+          .select(`
+            id,
+            email,
+            role,
+            franchisee_data:franchisees!franchisees_user_id_fkey(
+              company_name,
+              fantasy_name
+            )
+          `)
           .eq('city_id', appUser.city_id)
-          .eq('status', 'active');
+          .eq('role', 'franchisee');
 
         if (error) throw error;
         setFranchisees(data || []);
@@ -270,7 +292,9 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
               <SelectItem value="none">Nenhum franqueado</SelectItem>
               {franchisees.map(franchisee => (
                 <SelectItem key={franchisee.id} value={franchisee.id}>
-                  {franchisee.company_name}
+                  {franchisee.franchisee_data?.[0]?.company_name ||
+                   franchisee.franchisee_data?.[0]?.fantasy_name ||
+                   franchisee.email}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -323,73 +347,177 @@ export default function MotorcycleManagement() {
     return <Navigate to="/franchisee-dashboard" replace />;
   }
 
-  useEffect(() => {
-    const fetchMotorcycles = async () => {
-      if (!appUser) return;
-      
-      setIsLoading(true);
-      try {
-        console.debug('[MotorcycleManagement] Carregando motos para usuário:', appUser.role, appUser.city_id);
-        
-        // Construir a query baseada no papel do usuário
-        let query = supabase.from('motorcycles').select(`
-          *,
-          franchisee:franchisee_id(company_name)
-        `);
+  const fetchMotorcycles = useCallback(async () => {
+    if (!appUser) {
+      console.log('[MotorcycleManagement] Aguardando dados do usuário...');
+      return;
+    }
 
-        // Aplicar filtros baseados no papel do usuário
-        switch (appUser.role) {
-          case 'admin':
-          case 'master_br':
-            // Admin e Master BR veem todas as motos
-            break;
-          case 'regional':
-            // Regional vê apenas motos da sua cidade
-            if (appUser.city_id) {
-              query = query.eq('city_id', appUser.city_id);
-            }
-            break;
-          case 'franchisee':
-            // Franqueado vê apenas suas próprias motos
-            if (appUser.city_id) {
-              query = query.eq('city_id', appUser.city_id).eq('franchisee_id', appUser.id);
-            }
-            break;
-          default:
-            // Filtrar por cidade se disponível
-            if (appUser.city_id) {
-              query = query.eq('city_id', appUser.city_id);
-            }
-        }
+    setIsLoading(true);
+    try {
+      console.debug('[MotorcycleManagement] Carregando motos para usuário:', {
+        role: appUser.role,
+        city_id: appUser.city_id,
+        user_id: appUser.id
+      });
 
-        const { data: motorcyclesData, error } = await query.order('created_at', { ascending: false });
-
-        if (error) {
-          throw error;
-        }
-
-        console.log('[MotorcycleManagement] Motos carregadas:', motorcyclesData);
-        setMotorcycles((motorcyclesData || []) as any as Motorcycle[]);
-        
-        toast({
-          title: "Dados Carregados",
-          description: `Carregadas ${motorcyclesData?.length || 0} motocicletas da base de dados.`
-        });
-        
-      } catch (err) {
-        console.error('[MotorcycleManagement] Erro ao carregar motos:', err);
-        toast({
-          variant: "destructive", 
-          title: "Erro",
-          description: "Erro ao carregar dados das motocicletas."
-        });
-      } finally {
-        setIsLoading(false);
+      // Verificar se o usuário está autenticado no Supabase
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        console.error('[MotorcycleManagement] Erro de autenticação:', authError);
+        throw new Error(`Erro de autenticação: ${authError.message}`);
       }
-    };
 
-    fetchMotorcycles();
+      if (!user) {
+        throw new Error('Usuário não está autenticado no Supabase. Faça login novamente.');
+      }
+
+      console.log('[MotorcycleManagement] Usuário autenticado:', {
+        id: user.id,
+        email: user.email,
+        appUserId: appUser.id
+      });
+
+      // Verificar se o ID do usuário autenticado corresponde ao appUser
+      if (user.id !== appUser.id) {
+        console.warn('[MotorcycleManagement] IDs não coincidem:', {
+          authUserId: user.id,
+          appUserId: appUser.id
+        });
+      }
+
+      // Primeiro, vamos testar uma consulta simples para verificar a conexão
+      console.log('[MotorcycleManagement] Testando conexão com Supabase...');
+
+      try {
+        const { data: testData, error: testError } = await supabase
+          .from('motorcycles')
+          .select('count', { count: 'exact', head: true });
+
+        if (testError) {
+          console.error('[MotorcycleManagement] Erro no teste de conexão:', testError);
+          throw new Error(`Erro de conexão: ${testError.message}`);
+        }
+
+        console.log('[MotorcycleManagement] Conexão OK. Total de registros:', testData);
+      } catch (testErr) {
+        console.error('[MotorcycleManagement] Falha no teste de conexão:', testErr);
+        throw testErr;
+      }
+
+      // Construir a query baseada no papel do usuário
+      console.log('[MotorcycleManagement] Construindo query para usuário:', appUser.role);
+
+      let query = supabase.from('motorcycles').select(`
+        id,
+        placa,
+        modelo,
+        status,
+        tipo,
+        valor_semanal,
+        data_ultima_mov,
+        codigo_cs,
+        city_id,
+        franchisee_id,
+        created_at,
+        updated_at,
+        franchisee:app_users!motorcycles_franchisee_id_fkey(
+          id,
+          email,
+          role,
+          franchisee_data:franchisees!franchisees_user_id_fkey(
+            company_name,
+            fantasy_name
+          )
+        )
+      `);
+
+      // Aplicar filtros baseados no papel do usuário
+      switch (appUser.role) {
+        case 'admin':
+        case 'master_br':
+          // Admin e Master BR veem todas as motos
+          console.log('[MotorcycleManagement] Usuário admin/master_br - carregando todas as motos');
+          break;
+        case 'regional':
+          // Regional vê apenas motos da sua cidade
+          if (appUser.city_id) {
+            console.log('[MotorcycleManagement] Usuário regional - filtrando por cidade:', appUser.city_id);
+            query = query.eq('city_id', appUser.city_id);
+          } else {
+            console.warn('[MotorcycleManagement] Usuário regional sem cidade - carregando todas as motos');
+          }
+          break;
+        case 'franchisee':
+          // Franqueado vê motos da sua cidade
+          if (appUser.city_id) {
+            console.log('[MotorcycleManagement] Usuário franqueado - filtrando por cidade:', appUser.city_id);
+            query = query.eq('city_id', appUser.city_id);
+          } else {
+            console.warn('[MotorcycleManagement] Usuário franqueado sem cidade - carregando todas as motos');
+          }
+          break;
+        default:
+          // Filtrar por cidade se disponível
+          if (appUser.city_id) {
+            console.log('[MotorcycleManagement] Usuário padrão - filtrando por cidade:', appUser.city_id);
+            query = query.eq('city_id', appUser.city_id);
+          }
+      }
+
+      console.log('[MotorcycleManagement] Executando query...');
+      const { data: motorcyclesData, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[MotorcycleManagement] Erro na query:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+
+        // Verificar se é um erro de RLS
+        if (error.message?.includes('RLS') || error.message?.includes('policy') || error.code === 'PGRST116') {
+          throw new Error('Sem permissão para acessar os dados. Verifique se você está logado corretamente e tem as permissões necessárias.');
+        }
+
+        throw error;
+      }
+
+      console.log('[MotorcycleManagement] Motos carregadas:', {
+        count: motorcyclesData?.length || 0,
+        sample: motorcyclesData?.slice(0, 2), // Mostrar apenas 2 para debug
+        franchiseeData: motorcyclesData?.map(m => ({
+          id: m.id,
+          placa: m.placa,
+          franchisee_id: m.franchisee_id,
+          franchisee: m.franchisee
+        })).slice(0, 3)
+      });
+
+      // Os dados já vêm com o JOIN correto
+      setMotorcycles(motorcyclesData as any as Motorcycle[]);
+
+      toast({
+        title: "Dados Carregados",
+        description: `Carregadas ${motorcyclesData?.length || 0} motocicletas da base de dados.`
+      });
+
+    } catch (err: any) {
+      console.error('[MotorcycleManagement] Erro ao carregar motos:', err);
+      toast({
+        variant: "destructive",
+        title: "Erro ao Carregar Dados",
+        description: err.message || "Erro ao carregar dados das motocicletas. Verifique sua conexão e permissões."
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }, [appUser, toast]);
+
+  useEffect(() => {
+    fetchMotorcycles();
+  }, [fetchMotorcycles]);
 
   // Filtros são controlados diretamente no state
 
@@ -411,7 +539,7 @@ export default function MotorcycleManagement() {
             valor_semanal: motorcycleData.valor_semanal,
             data_ultima_mov: motorcycleData.data_ultima_mov,
             codigo_cs: motorcycleData.codigo_cs,
-            franchisee_id: motorcycleData.franchisee_id === 'none' ? null : motorcycleData.franchisee_id,
+            franchisee_id: (motorcycleData.franchisee_id && motorcycleData.franchisee_id !== 'none' && motorcycleData.franchisee_id !== '') ? motorcycleData.franchisee_id : null,
             observacoes: motorcycleData.observacoes,
             updated_at: new Date().toISOString()
           })
@@ -422,10 +550,8 @@ export default function MotorcycleManagement() {
           throw error;
         }
 
-        // Atualizar a lista local
-        setMotorcycles(prev => prev.map(moto => 
-          moto.id === id ? { ...moto, ...motorcycleData } : moto
-        ));
+        // Recarregar os dados do banco para garantir que as informações do franqueado apareçam
+        fetchMotorcycles();
 
         toast({
           title: "Moto Atualizada!",
@@ -453,7 +579,7 @@ export default function MotorcycleManagement() {
             data_ultima_mov: motorcycleData.data_ultima_mov,
             codigo_cs: motorcycleData.codigo_cs,
             city_id: cityId,
-            franchisee_id: motorcycleData.franchisee_id === 'none' ? null : motorcycleData.franchisee_id,
+            franchisee_id: (motorcycleData.franchisee_id && motorcycleData.franchisee_id !== 'none' && motorcycleData.franchisee_id !== '') ? motorcycleData.franchisee_id : null,
             observacoes: motorcycleData.observacoes,
             data_criacao: new Date().toISOString(),
             created_at: new Date().toISOString(),
@@ -648,7 +774,15 @@ export default function MotorcycleManagement() {
     return (
       <div className="space-y-6">
         <div className="flex justify-center items-center h-64">
-          <p>Carregando dados das motocicletas...</p>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p>Carregando dados das motocicletas...</p>
+            {appUser && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Usuário: {appUser.email} ({appUser.role})
+              </p>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -781,7 +915,9 @@ export default function MotorcycleManagement() {
                       </td>
                       <td className="p-3 text-sm">{motorcycle.tipo || 'Usada'}</td>
                       <td className="p-3 text-sm">
-                        {motorcycle.franchisee?.company_name || '-'}
+                        {motorcycle.franchisee?.franchisee_data?.[0]?.company_name ||
+                         motorcycle.franchisee?.franchisee_data?.[0]?.fantasy_name ||
+                         motorcycle.franchisee?.email || '-'}
                       </td>
                       <td className="p-3 text-sm">
                         {motorcycle.valor_semanal ? 
