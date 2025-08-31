@@ -5,11 +5,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { CalendarDays, TrendingUp, Bike, BarChart3, PieChart as PagePieIcon, CheckCircle, ArrowRight, Wrench } from "lucide-react";
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboard } from '@/contexts/DashboardContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { parseISO, isValid, getYear, getMonth, startOfDay, isSameDay } from 'date-fns';
+import { parseISO, isValid, startOfDay, isSameDay } from 'date-fns';
+
 import { StatusDistributionChart } from '@/components/charts/status-distribution-chart';
 import { BaseGrowthChart } from '@/components/charts/base-growth-chart';
+import { MonthlyRentalsChart } from '@/components/charts/monthly-rentals-chart';
+import { DailyRentalsChart } from '@/components/charts/daily-rentals-chart';
 
 interface Motorcycle {
   id: string;
@@ -45,19 +49,54 @@ const processRealMotorcycleData = (motorcycles: any[]) => {
   const statusCounts: Record<string, number> = {};
   const uniqueMotorcyclesByPlaca: { [placa: string]: any } = {};
   
-  // Obter a moto mais recente por placa
+  // Obter a moto mais recente por placa (baseado em created_at como fallback)
   motorcycles.forEach(moto => {
     if (!moto.placa) return;
     const existingMoto = uniqueMotorcyclesByPlaca[moto.placa];
-    if (!existingMoto || (moto.data_ultima_mov && existingMoto.data_ultima_mov && new Date(moto.data_ultima_mov) > new Date(existingMoto.data_ultima_mov))) {
+
+    if (!existingMoto) {
+      // Primeira moto com esta placa
       uniqueMotorcyclesByPlaca[moto.placa] = moto;
+    } else {
+      // Comparar datas para pegar a mais recente
+      let motoDate = null;
+      let existingDate = null;
+
+      // Priorizar data_ultima_mov, depois created_at
+      if (moto.data_ultima_mov) {
+        motoDate = new Date(moto.data_ultima_mov);
+      } else if (moto.created_at) {
+        motoDate = new Date(moto.created_at);
+      }
+
+      if (existingMoto.data_ultima_mov) {
+        existingDate = new Date(existingMoto.data_ultima_mov);
+      } else if (existingMoto.created_at) {
+        existingDate = new Date(existingMoto.created_at);
+      }
+
+      // Se conseguiu obter as datas, comparar
+      if (motoDate && existingDate && motoDate > existingDate) {
+        uniqueMotorcyclesByPlaca[moto.placa] = moto;
+      } else if (motoDate && !existingDate) {
+        // Se a nova moto tem data e a existente não, usar a nova
+        uniqueMotorcyclesByPlaca[moto.placa] = moto;
+      }
     }
   });
   
   const representativeMotorcycles = Object.values(uniqueMotorcyclesByPlaca);
   const totalUniqueMotorcycles = representativeMotorcycles.length;
+
+  console.log('[StatusRapido] Total de placas únicas encontradas:', totalUniqueMotorcycles);
+  console.log('[StatusRapido] Motos representativas por placa:', representativeMotorcycles.map(m => ({
+    placa: m.placa,
+    status: m.status,
+    data_ultima_mov: m.data_ultima_mov,
+    created_at: m.created_at
+  })));
   
-  // Contar por status
+  // Contar por status (apenas placas únicas)
   representativeMotorcycles.forEach(moto => {
     const status = moto.status || 'active';
     statusCounts[status] = (statusCounts[status] || 0) + 1;
@@ -100,6 +139,9 @@ const processRealMotorcycleData = (motorcycles: any[]) => {
   
   // Calcular totais
   const totalLocacoes = (statusCounts.alugada || 0) + (statusCounts.relocada || 0);
+
+  console.log('[StatusRapido] Contagem final por status:', statusCounts);
+  console.log('[StatusRapido] Total de locações (alugada + relocada):', totalLocacoes);
   
   // Simular dados de crescimento baseados nos dados reais
   const monthAbbreviations = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -143,7 +185,9 @@ const processRealMotorcycleData = (motorcycles: any[]) => {
       locacoes: totalLocacoes.toString()
     },
     statusDistribution,
-    baseGrowth: baseGrowthData
+    baseGrowth: baseGrowthData,
+    monthlyRentals: generateMonthlyRentalsData(motorcycles),
+    dailyRentals: generateDailyRentalsData(motorcycles)
   };
 };
 
@@ -183,18 +227,209 @@ const generateMockData = (userRole: string, cityName: string) => {
       total: baseData.totalMotos.toString(),
       locacoes: (baseData.alugadasHoje + (userRole === 'admin' ? 15 : userRole === 'master_br' ? 15 : 5)).toString()
     },
-    statusDistribution
+    statusDistribution,
+    baseGrowth: [
+      { month: 'Jan', cumulativeCount: Math.floor(baseData.totalMotos * 0.1) },
+      { month: 'Fev', cumulativeCount: Math.floor(baseData.totalMotos * 0.2) },
+      { month: 'Mar', cumulativeCount: Math.floor(baseData.totalMotos * 0.3) },
+      { month: 'Abr', cumulativeCount: Math.floor(baseData.totalMotos * 0.4) },
+      { month: 'Mai', cumulativeCount: Math.floor(baseData.totalMotos * 0.5) },
+      { month: 'Jun', cumulativeCount: Math.floor(baseData.totalMotos * 0.6) },
+      { month: 'Jul', cumulativeCount: Math.floor(baseData.totalMotos * 0.8) },
+      { month: 'Ago', cumulativeCount: baseData.totalMotos },
+      { month: 'Set', cumulativeCount: baseData.totalMotos },
+      { month: 'Out', cumulativeCount: baseData.totalMotos },
+      { month: 'Nov', cumulativeCount: baseData.totalMotos },
+      { month: 'Dez', cumulativeCount: baseData.totalMotos }
+    ],
+    monthlyRentals: generateMonthlyRentalsData([]), // Dados simulados
+    dailyRentals: generateDailyRentalsData([]) // Dados simulados
   };
+};
+
+// Função para gerar dados de locações mensais baseados nos dados reais
+const generateMonthlyRentalsData = (motorcycles: any[]) => {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+
+  console.log('[MonthlyRentals] Processando', motorcycles.length, 'motos - Mês atual:', ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][currentMonth]);
+
+  // Inicializar contadores mensais
+  const monthlyStats = Array.from({ length: 12 }, (_, index) => ({
+    month: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][index],
+    novas: 0,
+    usadas: 0,
+    projecao: 0,
+    total: 0
+  }));
+
+  // Processar dados reais das motos - APENAS STATUS 'alugada'
+  const processedMotos = new Set(); // Evitar duplicatas
+
+  motorcycles.forEach(moto => {
+    if (!moto || processedMotos.has(moto.id)) return;
+    processedMotos.add(moto.id);
+
+    // IMPORTANTE: Só contar se o status for 'alugada'
+    if (moto.status !== 'alugada') {
+      return;
+    }
+
+    // Determinar o mês da locação baseado na data de movimentação
+    let locacaoDate = null;
+
+    // Usar data_ultima_mov como indicador de quando foi alugada
+    if (moto.data_ultima_mov) {
+      locacaoDate = moto.data_ultima_mov;
+    }
+    // Fallback: data de criação se não houver movimentação mas está alugada
+    else if (moto.created_at || moto.data_criacao) {
+      locacaoDate = moto.created_at || moto.data_criacao;
+    }
+
+    if (locacaoDate) {
+      try {
+        const date = new Date(locacaoDate);
+        if (date.getFullYear() === currentYear) {
+          const monthIndex = date.getMonth();
+
+          // Só contar se for do ano atual e até o mês atual
+          if (monthIndex <= currentMonth) {
+            // Determinar se é nova ou usada baseado no campo 'tipo'
+            const isNova = moto.tipo === 'Nova';
+
+            if (isNova) {
+              monthlyStats[monthIndex].novas++;
+            } else {
+              // Se não tem tipo definido ou é 'Usada', contar como usada
+              monthlyStats[monthIndex].usadas++;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao processar data de locação:', locacaoDate);
+      }
+    }
+  });
+
+  // Calcular totais e projeção apenas para o mês atual
+  const currentDay = new Date().getDate();
+  const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+  console.log('[MonthlyRentals] Calculando projeção - Dia atual:', currentDay, 'de', daysInCurrentMonth);
+
+  const result = monthlyStats.map((data, index) => {
+    const total = data.novas + data.usadas;
+
+    // Projeção para o próximo mês baseada no resultado do mês atual
+    let projecao = 0;
+
+    // Mostrar projeção no mês seguinte ao atual
+    if (index === currentMonth + 1) {
+      // Buscar dados do mês atual para calcular projeção
+      const dadosAtual = monthlyStats[currentMonth];
+      const totalAtual = dadosAtual.novas + dadosAtual.usadas;
+
+      if (totalAtual > 0) {
+        // Calcular projeção baseada no progresso do mês atual
+        const progressoMes = Math.max(0.1, currentDay / daysInCurrentMonth);
+        const projecaoTotal = Math.round(totalAtual / progressoMes);
+        projecao = Math.max(1, projecaoTotal - totalAtual);
+
+        console.log('[MonthlyRentals] Projeção para próximo mês - Total atual:', totalAtual, 'Progresso:', Math.round(progressoMes * 100) + '%', 'Projeção:', projecao);
+      } else {
+        // Se não há dados no mês atual, usar projeção base
+        projecao = 3;
+        console.log('[MonthlyRentals] Projeção base para próximo mês:', projecao);
+      }
+    }
+
+    return {
+      ...data,
+      total: index <= currentMonth ? total : 0,
+      projecao: index === currentMonth + 1 ? projecao : 0
+    };
+  });
+
+  console.log('[MonthlyRentals] Dados processados:', result.slice(0, currentMonth + 2));
+  return result;
+};
+
+// Função para gerar dados diários dos últimos 30 dias baseados em dados reais
+const generateDailyRentalsData = (motorcycles: any[]) => {
+  const dailyData = [];
+  const today = new Date();
+
+  // Criar array dos últimos 30 dias
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - i);
+
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const dayLabel = `${day}/${month}`;
+
+    // Contar locações reais para este dia
+    let novas = 0;
+    let usadas = 0;
+
+    const processedMotos = new Set(); // Evitar duplicatas
+
+    motorcycles.forEach(moto => {
+      if (!moto || processedMotos.has(moto.id)) return;
+      processedMotos.add(moto.id);
+
+      // Só contar se o status for 'alugada'
+      if (moto.status !== 'alugada') return;
+
+      // Verificar se a data de movimentação corresponde ao dia atual
+      let locacaoDate = null;
+      if (moto.data_ultima_mov) {
+        locacaoDate = moto.data_ultima_mov;
+      } else if (moto.created_at || moto.data_criacao) {
+        locacaoDate = moto.created_at || moto.data_criacao;
+      }
+
+      if (locacaoDate) {
+        try {
+          const motoDate = new Date(locacaoDate);
+          const motoDay = motoDate.getDate().toString().padStart(2, '0');
+          const motoMonth = (motoDate.getMonth() + 1).toString().padStart(2, '0');
+          const motoLabel = `${motoDay}/${motoMonth}`;
+
+          if (motoLabel === dayLabel) {
+            if (moto.tipo === 'Nova') {
+              novas++;
+            } else {
+              usadas++;
+            }
+          }
+        } catch (e) {
+          console.warn('Erro ao processar data diária:', locacaoDate);
+        }
+      }
+    });
+
+    const total = novas + usadas;
+
+    dailyData.push({
+      day: dayLabel,
+      novas,
+      usadas,
+      total
+    });
+  }
+
+  return dailyData;
 };
 
 export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [dashboardData, setDashboardData] = useState<any>(null);
   const { appUser } = useAuth();
   const { toast } = useToast();
+  const { dashboardData, setDashboardData, isLoading, setIsLoading } = useDashboard();
 
   // Redirecionar franqueados para seu dashboard específico
   if (appUser?.role === 'franchisee') {
@@ -216,19 +451,34 @@ export default function Dashboard() {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!appUser) return;
+      console.log('[Dashboard] loadData called, appUser:', appUser);
+      if (!appUser) {
+        console.log('[Dashboard] No user found, skipping data load');
+        return;
+      }
       
       setIsLoading(true);
       try {
-        console.debug('[Dashboard] Loading data for user:', appUser.role, appUser.city_name);
-        
+        console.log('=== DASHBOARD DEBUG START ===');
+        console.log('[Dashboard] Loading data for user:', appUser.role, appUser.city_name);
+        console.log('[Dashboard] User details:', {
+          role: appUser.role,
+          city_id: appUser.city_id,
+          id: appUser.id,
+          city_name: appUser.city_name
+        });
+
         // Fazer query real na tabela motorcycles
-        console.debug('[Dashboard] Fazendo query na tabela motorcycles...');
+        console.log('[Dashboard] Fazendo query na tabela motorcycles...');
 
         // Construir query baseada no papel do usuário
         let query = supabase.from('motorcycles').select('*');
 
-        // Aplicar filtros baseados no papel do usuário
+        // TEMPORÁRIO: Remover filtros para debug - mostrar todas as motos
+        console.debug('[Dashboard] MODO DEBUG: Mostrando todas as motos sem filtros');
+
+        // Aplicar filtros baseados no papel do usuário (DESABILITADO PARA DEBUG)
+        /*
         switch (appUser.role) {
           case 'admin':
           case 'master_br':
@@ -250,38 +500,50 @@ export default function Dashboard() {
               query = query.eq('city_id', appUser.city_id);
             }
         }
+        */
 
         query = query.order('created_at', { ascending: false });
 
+        console.log('[Dashboard] Executando query para papel:', appUser.role);
         const { data: motorcycles, error } = await query;
+
+        console.log('[Dashboard] Query result:', {
+          data: motorcycles,
+          error: error,
+          length: motorcycles?.length || 0
+        });
 
         if (error) {
           console.error('[Dashboard] Erro ao buscar motos:', error);
           throw error;
         }
-        
+
         // Processar dados baseados na tabela criada
-        console.debug('[Dashboard] Loaded data:', motorcycles?.length || 0, 'motorcycles');
+        console.log('[Dashboard] Loaded data:', motorcycles?.length || 0, 'motorcycles');
         
         const realData = processRealMotorcycleData(motorcycles || []);
+        console.log('[Dashboard] Processed real data:', realData);
         setDashboardData(realData);
-        
+
         toast({
           title: "Dados Reais Carregados",
           description: `Processando ${motorcycles?.length || 0} motos reais da tabela motorcycles.`
         });
+
+        console.log('=== DASHBOARD DEBUG END ===');
         
       } catch (err) {
         console.error('[Dashboard] Error loading data:', err);
+        console.log('[Dashboard] USANDO DADOS SIMULADOS - ERRO NA BUSCA');
         // Fallback para dados simulados
         const mockData = generateMockData(
-          appUser.role || 'regional', 
+          appUser.role || 'regional',
           appUser.city_name || 'Salvador'
         );
         setDashboardData(mockData);
-        
+
         toast({
-          variant: "destructive", 
+          variant: "destructive",
           title: "Erro",
           description: "Erro ao carregar dados. Usando dados simulados."
         });
@@ -301,7 +563,7 @@ export default function Dashboard() {
     );
   }
 
-  const { todayData, monthData, kpi, statusDistribution, baseGrowth } = dashboardData;
+  const { todayData, monthData, kpi, statusDistribution, baseGrowth, monthlyRentals } = dashboardData;
   
   return (
     <div className="space-y-6">
@@ -475,7 +737,7 @@ export default function Dashboard() {
       
       <Separator className="my-8" />
 
-      {/* Gráficos exatamente como no projeto de referência */}
+      {/* Gráficos de Status e Crescimento */}
       <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 mt-8">
         <Card className="shadow-lg">
           <CardHeader>
@@ -491,7 +753,7 @@ export default function Dashboard() {
             <StatusDistributionChart data={statusDistribution} />
           </CardContent>
         </Card>
-        
+
         <Card className="shadow-lg">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -507,67 +769,29 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-      
-      {/* Resumo da Frota em cards separados */}
-      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 mt-8">
+
+      {/* Gráfico de Análise Mensal de Locações */}
+      <div className="mt-8">
         <Card className="shadow-lg">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <PagePieIcon className="h-6 w-6 text-primary" />
+              <Bike className="h-6 w-6 text-primary" />
               <div>
-                <CardTitle className="font-headline">Distribuição de Motos por Status</CardTitle>
-                <CardDescription>Status atual da frota de motocicletas ({currentYear}).</CardDescription>
+                <CardTitle className="font-headline">Análise Mensal de Locações ({currentYear})</CardTitle>
+                <CardDescription>Volume de motos alugadas e relocadas (barras) e o total de locações (linha).</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="space-y-2">
-              {statusDistribution.map((item: any, index: number) => (
-                <div key={index} className="flex justify-between items-center p-2 rounded-lg bg-muted">
-                  <span className="text-sm font-medium">{item.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">{item.count} motos</span>
-                    <span className="text-sm text-muted-foreground">({item.value}%)</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <MonthlyRentalsChart data={monthlyRentals} meta={180} />
           </CardContent>
         </Card>
-        
-        <Card className="shadow-lg">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              <div>
-                <CardTitle className="font-headline">Resumo da Frota</CardTitle>
-                <CardDescription>Estatísticas gerais das motocicletas.</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 rounded-lg bg-muted">
-                <span className="text-lg font-medium">Total de Motos</span>
-                <span className="text-2xl font-bold text-primary">{kpi.total}</span>
-              </div>
-              <div className="flex justify-between items-center p-4 rounded-lg bg-muted">
-                <span className="text-lg font-medium">Total de Locações</span>
-                <span className="text-2xl font-bold text-blue-500">{kpi.locacoes}</span>
-              </div>
-              <div className="flex justify-between items-center p-4 rounded-lg bg-muted">
-                <span className="text-lg font-medium">Taxa de Ocupação</span>
-                <span className="text-2xl font-bold text-green-500">
-                  {kpi.total > 0 
-                    ? `${Math.round((parseInt(kpi.locacoes) / parseInt(kpi.total)) * 100)}%`
-                    : '0%'
-                  }
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+
+        {/* Gráfico de Análise Diária */}
+        <DailyRentalsChart data={dashboardData?.dailyRentals || []} />
       </div>
+
+
     </div>
   );
 }

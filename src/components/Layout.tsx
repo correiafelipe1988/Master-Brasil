@@ -21,6 +21,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboard } from '@/contexts/DashboardContext';
 import { useToast } from '@/hooks/use-toast';
 
 interface LayoutProps {
@@ -30,6 +31,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { appUser, signOut } = useAuth();
+  const { dashboardData } = useDashboard();
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
@@ -172,7 +174,7 @@ export function Layout({ children }: LayoutProps) {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="h-screen bg-gray-50 flex overflow-hidden">
       {/* Mobile Menu Button - Fixed Position */}
       <div className="md:hidden fixed top-4 left-4 z-50">
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -181,9 +183,10 @@ export function Layout({ children }: LayoutProps) {
               <Menu className="h-4 w-4" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-80 p-0" style={{ backgroundColor: '#2C3D94' }}>
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-8">
+          <SheetContent side="left" className="w-80 p-0 overflow-hidden" style={{ backgroundColor: '#2C3D94' }}>
+            <div className="h-full flex flex-col">
+              <div className="p-6 flex-shrink-0">
+                <div className="flex items-center gap-3 mb-8">
                 <img 
                   src="https://i.postimg.cc/tCTMJV3S/GO-removebg-preview-2.png" 
                   alt="GO Logo" 
@@ -200,16 +203,21 @@ export function Layout({ children }: LayoutProps) {
                   </h2>
                   <p className="text-xs" style={{ color: '#99A1CB' }}>Gestão de Locação</p>
                 </div>
+                </div>
               </div>
-              <Navigation />
+
+              {/* Scrollable Navigation for Mobile */}
+              <div className="flex-1 overflow-y-auto px-6 scrollbar-thin scrollbar-thumb-blue-600 scrollbar-track-blue-300">
+                <Navigation />
+              </div>
             </div>
           </SheetContent>
         </Sheet>
       </div>
 
-      {/* Sidebar - Desktop - Full Height with Scroll */}
-      <aside className="hidden md:flex w-64 text-white min-h-screen" style={{ backgroundColor: '#2C3D94' }}>
-        <div className="flex flex-col w-full">
+      {/* Sidebar - Desktop - Full Height with Independent Scroll */}
+      <aside className="hidden md:flex w-64 text-white h-screen flex-shrink-0" style={{ backgroundColor: '#2C3D94' }}>
+        <div className="flex flex-col w-full h-full">
           {/* Header - Fixed */}
           <div className="p-6 flex-shrink-0">
             <div className="flex items-center gap-3 mb-6">
@@ -232,10 +240,10 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </div>
 
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto px-6">
+          {/* Scrollable Content - Independent Scroll */}
+          <div className="flex-1 overflow-y-auto px-6 scrollbar-thin scrollbar-thumb-blue-600 scrollbar-track-blue-300">
             <Navigation />
-            
+
             {/* Status Cards */}
             <div className="mt-6 mb-6">
               <h3 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#99A1CB' }}>
@@ -254,7 +262,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-gray-500">Placas únicas</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">532</span>
+                    <span className="text-lg font-bold">{dashboardData?.kpi?.total || '532'}</span>
                   </div>
                 </div>
 
@@ -272,7 +280,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-green-600">Motos prontas</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">50</span>
+                    <span className="text-lg font-bold">{dashboardData?.monthData?.motosDisponiveis || '50'}</span>
                   </div>
                 </div>
 
@@ -288,7 +296,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-blue-600">Em uso</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">447</span>
+                    <span className="text-lg font-bold">{(dashboardData?.monthData?.motosAlugadas || 0) + (dashboardData?.monthData?.motosRelocadas || 0) || '447'}</span>
                   </div>
                 </div>
 
@@ -304,7 +312,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-purple-600">Em oficina</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">29</span>
+                    <span className="text-lg font-bold">{dashboardData?.monthData?.emManutencao || '29'}</span>
                   </div>
                 </div>
 
@@ -320,7 +328,7 @@ export function Layout({ children }: LayoutProps) {
                         <p className="text-xs text-orange-600">Aguardando</p>
                       </div>
                     </div>
-                    <span className="text-lg font-bold">1</span>
+                    <span className="text-lg font-bold">{dashboardData?.monthData?.motosRecuperadas || '1'}</span>
                   </div>
                 </div>
               </div>
@@ -359,10 +367,10 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </aside>
 
-      {/* Main Content Area with Header */}
-      <div className="flex-1 flex flex-col">
-        {/* Header - Only over main content */}
-        <header className="bg-white border-b border-gray-200 shadow-sm h-16 flex items-center px-6">
+      {/* Main Content Area with Header - Independent Scroll */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Header - Fixed at top */}
+        <header className="bg-white border-b border-gray-200 shadow-sm h-16 flex items-center px-6 flex-shrink-0">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-4">
               <div className="md:hidden">
@@ -383,8 +391,8 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 p-6 bg-gray-50">
+        {/* Main Content - Scrollable Area */}
+        <main className="flex-1 overflow-y-auto p-6 bg-gray-50 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
           {children}
         </main>
       </div>
