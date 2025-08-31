@@ -224,103 +224,40 @@ export default function Dashboard() {
         
         // Fazer query real na tabela motorcycles
         console.debug('[Dashboard] Fazendo query na tabela motorcycles...');
-        
-        // Usar query SQL raw para evitar problemas de tipos
-        let sqlQuery = 'SELECT * FROM public.motorcycles';
-        let sqlConditions: string[] = [];
-        
+
+        // Construir query baseada no papel do usuário
+        let query = supabase.from('motorcycles').select('*');
+
         // Aplicar filtros baseados no papel do usuário
         switch (appUser.role) {
           case 'admin':
-            // Admin vê todas as motos
-            break;
           case 'master_br':
-            // Master BR vê todas as motos do Brasil
+            // Admin e Master BR veem todas as motos
             break;
           case 'regional':
             // Regional vê apenas motos da sua cidade
             if (appUser.city_id) {
-              sqlConditions.push(`city_id = '${appUser.city_id}'`);
+              query = query.eq('city_id', appUser.city_id);
             }
             break;
           case 'franchisee':
             // Franchisee vê apenas suas motos
-            sqlConditions.push(`franchisee_id = '${appUser.id}'`);
+            query = query.eq('franchisee_id', appUser.id);
             break;
           default:
             // Caso padrão: filtrar por cidade se disponível
             if (appUser.city_id) {
-              sqlConditions.push(`city_id = '${appUser.city_id}'`);
+              query = query.eq('city_id', appUser.city_id);
             }
         }
-        
-        if (sqlConditions.length > 0) {
-          sqlQuery += ' WHERE ' + sqlConditions.join(' AND ');
-        }
-        sqlQuery += ' ORDER BY created_at DESC';
-        
-        // Usar os dados reais que existem na tabela motorcycles do Supabase
-        // ABC1234 (active), XYZ5678 (alugada), DEF9101 (manutencao)
-        console.debug('[Dashboard] Usando dados reais da tabela motorcycles');
-        
-        let motorcycles = [
-          {
-            id: '19db3021-34b0-4646-a72d-1f1b375aa870',
-            placa: 'ABC1234',
-            modelo: 'Honda CG 160 Start',
-            status: 'active',
-            data_ultima_mov: '2025-08-28T22:46:50.000Z',
-            data_criacao: '2025-08-30T21:46:50.635842+00:00',
-            city_id: appUser.city_id,
-            franchisee_id: null,
-            created_at: '2025-08-30T21:46:50.635842+00:00',
-            updated_at: '2025-08-30T21:46:50.635842+00:00'
-          },
-          {
-            id: 'e6c552e7-8eff-427c-a205-aea758e451b7',
-            placa: 'XYZ5678',
-            modelo: 'Yamaha Factor 125',
-            status: 'alugada',
-            data_ultima_mov: '2025-08-30T21:46:50.000Z',
-            data_criacao: '2025-08-30T21:46:50.635842+00:00',
-            city_id: appUser.city_id,
-            franchisee_id: null,
-            created_at: '2025-08-30T21:46:50.635842+00:00',
-            updated_at: '2025-08-30T21:46:50.635842+00:00'
-          },
-          {
-            id: 'e2971d84-d45a-4876-bf39-7ef4f6c853c2',
-            placa: 'DEF9101',
-            modelo: 'Honda CG 160 Cargo',
-            status: 'manutencao',
-            data_ultima_mov: '2025-08-25T22:46:50.000Z',
-            data_criacao: '2025-08-30T21:46:50.635842+00:00',
-            city_id: appUser.city_id,
-            franchisee_id: null,
-            created_at: '2025-08-30T21:46:50.635842+00:00',
-            updated_at: '2025-08-30T21:46:50.635842+00:00'
-          }
-        ];
-        
-        // Aplicar filtros baseados no papel do usuário
-        switch (appUser.role) {
-          case 'admin':
-          case 'master_br':
-            // Admin e Master BR veem todas as 3 motos
-            break;
-          case 'regional':
-            // Regional vê apenas motos da sua cidade
-            motorcycles = motorcycles.filter(moto => moto.city_id === appUser.city_id);
-            break;
-          case 'franchisee':
-            // Franchisee vê apenas suas motos
-            motorcycles = motorcycles.filter(moto => moto.franchisee_id === appUser.id);
-            break;
-          default:
-            // Filtrar por cidade se disponível
-            if (appUser.city_id) {
-              motorcycles = motorcycles.filter(moto => moto.city_id === appUser.city_id);
-            }
+
+        query = query.order('created_at', { ascending: false });
+
+        const { data: motorcycles, error } = await query;
+
+        if (error) {
+          console.error('[Dashboard] Erro ao buscar motos:', error);
+          throw error;
         }
         
         // Processar dados baseados na tabela criada
@@ -331,7 +268,7 @@ export default function Dashboard() {
         
         toast({
           title: "Dados Reais Carregados",
-          description: `Processando ${motorcycles?.length || 0} motos reais da tabela motorcycles (ABC1234, XYZ5678, DEF9101).`
+          description: `Processando ${motorcycles?.length || 0} motos reais da tabela motorcycles.`
         });
         
       } catch (err) {
