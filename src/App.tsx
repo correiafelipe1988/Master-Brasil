@@ -15,6 +15,7 @@ import TestCities from "./pages/TestCities";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import FranchiseeManagement from "./pages/FranchiseeManagement";
 import FranchiseeDashboard from "./pages/FranchiseeDashboard";
+import MotorcycleManagement from "./pages/MotorcycleManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -69,6 +70,14 @@ const App = () => (
               <ProtectedRoute>
                 <Layout>
                   <div>Activities (Em construção)</div>
+                </Layout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/motos" element={
+              <ProtectedRoute>
+                <Layout>
+                  <MotorcycleManagement />
                 </Layout>
               </ProtectedRoute>
             } />

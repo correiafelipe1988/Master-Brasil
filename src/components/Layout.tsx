@@ -4,15 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { 
   Menu, 
-  Users, 
   Building, 
-  DollarSign, 
-  Activity, 
   BarChart3, 
   Settings,
   LogOut,
-  Home,
-  Store
+  Store,
+  LayoutGrid,
+  Bike,
+  TrendingUp,
+  Radio,
+  AlertTriangle,
+  PiggyBank,
+  BarChart2,
+  Box,
+  Wrench,
+  DollarSign
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -46,10 +52,17 @@ export function Layout({ children }: LayoutProps) {
   };
 
   const navItems = [
-    { href: '/', icon: Home, label: 'Início' },
-    { href: '/leads', icon: Users, label: 'Leads' },
-    { href: '/deals', icon: DollarSign, label: 'Negócios' },
-    { href: '/activities', icon: Activity, label: 'Atividades' },
+    { href: '/', icon: LayoutGrid, label: 'Dashboard', subtitle: 'Visão geral' },
+    { href: '/motos', icon: Bike, label: 'Gestão de Motos', subtitle: 'Frota completa' },
+    { href: '/vendas', icon: DollarSign, label: 'Venda de Motos', subtitle: 'Registro de vendas' },
+    { href: '/projecao', icon: TrendingUp, label: 'Projeção de Crescimento', subtitle: 'Meta 1.000 motos' },
+    { href: '/rastreadores', icon: Radio, label: 'Rastreadores', subtitle: 'Nossos rastreadores' },
+    { href: '/distratos', icon: AlertTriangle, label: 'Distratos Locações', subtitle: 'Contratos encerrados' },
+    { href: '/franchisees', icon: Store, label: 'Franqueados', subtitle: 'Análise por franqueado' },
+    { href: '/financeiro', icon: PiggyBank, label: 'Financeiro', subtitle: 'Receitas e análises' },
+    { href: '/ociosidade', icon: BarChart2, label: 'Previsão de Ociosidade', subtitle: 'IA para tempo ocioso' },
+    { href: '/frota', icon: Box, label: 'Frota', subtitle: 'Análise de modelos' },
+    { href: '/manutencao', icon: Wrench, label: 'Manutenção', subtitle: 'Gestão de manutenção' },
   ];
 
   const adminItems = [
@@ -58,12 +71,14 @@ export function Layout({ children }: LayoutProps) {
     { href: '/admin/users', icon: Settings, label: 'Usuários' },
   ];
 
-  const regionalItems = [
-    { href: '/franchisees', icon: Store, label: 'Franqueados' },
-  ];
-
   const Navigation = () => (
-    <nav className="space-y-2">
+    <nav className="space-y-1">
+      <div className="px-3 py-2 mb-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#99A1CB' }}>
+          Navegação
+        </h3>
+      </div>
+      
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = location.pathname === item.href;
@@ -71,68 +86,48 @@ export function Layout({ children }: LayoutProps) {
           <Link
             key={item.href}
             to={item.href}
-            className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-              isActive 
-                ? 'bg-primary text-primary-foreground' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-            }`}
+            className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
+            style={{
+              backgroundColor: isActive ? '#3649A5' : 'transparent',
+              color: isActive ? 'white' : '#99A1CB',
+              borderLeft: isActive ? '3px solid #596AC5' : '3px solid transparent'
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.backgroundColor = '#5463AA';
+                e.currentTarget.style.color = 'white';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = '#99A1CB';
+              }
+            }}
             onClick={() => setIsOpen(false)}
           >
-            <Icon className="h-4 w-4" />
-            {item.label}
+            <Icon 
+              className="h-5 w-5 flex-shrink-0" 
+              style={{ color: isActive ? 'white' : '#7984B8' }}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{item.label}</div>
+              <div 
+                className="text-xs truncate" 
+                style={{ color: isActive ? '#E0E7FF' : '#99A1CB' }}
+              >
+                {item.subtitle}
+              </div>
+            </div>
           </Link>
         );
       })}
 
-      {appUser?.role === 'regional' && (
-        <>
-          <div className="h-px bg-border my-4" />
-          <div className="px-3 py-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Regional
-            </h3>
-          </div>
-          {regionalItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                  isActive 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
-                onClick={() => setIsOpen(false)}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </>
-      )}
-
-      {appUser?.role === 'franchisee' && (
-        <>
-          <div className="h-px bg-border my-4" />
-          <div className="px-3 py-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Franqueado
-            </h3>
-          </div>
-          <div className="px-3 py-2 text-sm text-muted-foreground">
-            <p>Seus dados e relatórios estarão aqui.</p>
-          </div>
-        </>
-      )}
-
       {appUser?.role === 'admin' && (
         <>
-          <div className="h-px bg-border my-4" />
-          <div className="px-3 py-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <div className="h-px my-6" style={{ backgroundColor: '#5463AA' }} />
+          <div className="px-3 py-2 mb-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#99A1CB' }}>
               Administração
             </h3>
           </div>
@@ -143,15 +138,31 @@ export function Layout({ children }: LayoutProps) {
               <Link
                 key={item.href}
                 to={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                  isActive 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
+                style={{
+                  backgroundColor: isActive ? '#3649A5' : 'transparent',
+                  color: isActive ? 'white' : '#99A1CB',
+                  borderLeft: isActive ? '3px solid #596AC5' : '3px solid transparent'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.backgroundColor = '#5463AA';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#99A1CB';
+                  }
+                }}
                 onClick={() => setIsOpen(false)}
               >
-                <Icon className="h-4 w-4" />
-                {item.label}
+                <Icon 
+                  className="h-5 w-5 flex-shrink-0" 
+                  style={{ color: isActive ? 'white' : '#7984B8' }}
+                />
+                <div className="text-sm font-medium">{item.label}</div>
               </Link>
             );
           })}
@@ -161,61 +172,219 @@ export function Layout({ children }: LayoutProps) {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="flex items-center justify-between px-4 h-16">
-          <div className="flex items-center gap-4">
-            <Sheet open={isOpen} onOpenChange={setIsOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden">
-                  <Menu className="h-4 w-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-80 p-0">
-                <div className="p-6">
-                  <h2 className="text-lg font-semibold mb-6">CRM Multi-Cidades</h2>
-                  <Navigation />
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Mobile Menu Button - Fixed Position */}
+      <div className="md:hidden fixed top-4 left-4 z-50">
+        <Sheet open={isOpen} onOpenChange={setIsOpen}>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="bg-white shadow-lg">
+              <Menu className="h-4 w-4" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-80 p-0" style={{ backgroundColor: '#2C3D94' }}>
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-8">
+                <img 
+                  src="https://i.postimg.cc/tCTMJV3S/GO-removebg-preview-2.png" 
+                  alt="GO Logo" 
+                  className="w-10 h-10"
+                />
+                <div>
+                  <h2 className="text-lg font-bold text-white">
+                    {appUser?.role === 'master_br' 
+                      ? 'Master Brasil'
+                      : appUser?.city_name 
+                        ? `Master ${appUser.city_name}`
+                        : 'Master Salvador'
+                    }
+                  </h2>
+                  <p className="text-xs" style={{ color: '#99A1CB' }}>Gestão de Locação</p>
                 </div>
-              </SheetContent>
-            </Sheet>
+              </div>
+              <Navigation />
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
 
-            <h1 className="text-xl font-bold">CRM Multi-Cidades</h1>
+      {/* Sidebar - Desktop - Full Height with Scroll */}
+      <aside className="hidden md:flex w-64 text-white min-h-screen" style={{ backgroundColor: '#2C3D94' }}>
+        <div className="flex flex-col w-full">
+          {/* Header - Fixed */}
+          <div className="p-6 flex-shrink-0">
+            <div className="flex items-center gap-3 mb-6">
+              <img 
+                src="https://i.postimg.cc/tCTMJV3S/GO-removebg-preview-2.png" 
+                alt="GO Logo" 
+                className="w-10 h-10"
+              />
+              <div>
+                <h2 className="text-lg font-bold">
+                  {appUser?.role === 'master_br' 
+                    ? 'Master Brasil'
+                    : appUser?.city_name 
+                      ? `Master ${appUser.city_name}`
+                      : 'Master Salvador'
+                  }
+                </h2>
+                <p className="text-xs" style={{ color: '#99A1CB' }}>Gestão de Locação</p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm font-medium">{appUser?.email}</p>
-              <p className="text-xs text-muted-foreground">
-                {appUser?.role === 'admin' ? 'Administrador' : 
-                 appUser?.role === 'master_br' ? 'Master Brasil' :
-                 appUser?.role === 'regional' ? 'Regional' :
-                 appUser?.role === 'franchisee' ? 'Franqueado' : 'Usuário'} 
-                {appUser?.city_name && ` • ${appUser.city_name}`}
-              </p>
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto px-6">
+            <Navigation />
+            
+            {/* Status Cards */}
+            <div className="mt-6 mb-6">
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#99A1CB' }}>
+                Status Rápido
+              </h3>
+              <div className="space-y-3">
+                {/* Total de Motos */}
+                <div className="bg-white rounded-lg p-3 text-gray-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                        <Box className="h-4 w-4 text-gray-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">Total de Motos</p>
+                        <p className="text-xs text-gray-500">Placas únicas</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold">532</span>
+                  </div>
+                </div>
+
+                {/* Disponíveis */}
+                <div className="bg-green-50 rounded-lg p-3 text-green-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                          <div className="w-2 h-2 rounded-full bg-white"></div>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">Disponíveis</p>
+                        <p className="text-xs text-green-600">Motos prontas</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold">50</span>
+                  </div>
+                </div>
+
+                {/* Alugadas */}
+                <div className="bg-blue-50 rounded-lg p-3 text-blue-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                        <Bike className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">Alugadas</p>
+                        <p className="text-xs text-blue-600">Em uso</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold">447</span>
+                  </div>
+                </div>
+
+                {/* Manutenção */}
+                <div className="bg-purple-50 rounded-lg p-3 text-purple-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                        <Wrench className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">Manutenção</p>
+                        <p className="text-xs text-purple-600">Em oficina</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold">29</span>
+                  </div>
+                </div>
+
+                {/* Recolhidas */}
+                <div className="bg-orange-50 rounded-lg p-3 text-orange-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                        <AlertTriangle className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">Recolhidas</p>
+                        <p className="text-xs text-orange-600">Aguardando</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold">1</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handleSignOut}
-              title="Sair"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
+          </div>
+
+          {/* User Info at Bottom - Fixed */}
+          <div className="flex-shrink-0 p-6 pt-0">
+            <div className="border-t pt-4" style={{ borderColor: '#5463AA' }}>
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg" style={{ backgroundColor: 'rgba(89, 106, 197, 0.15)' }}>
+                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: '#596AC5' }}>
+                  {appUser?.email?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{appUser?.email}</p>
+                  <p className="text-xs truncate" style={{ color: '#99A1CB' }}>
+                    {appUser?.role === 'admin' ? 'Administrador' : 
+                     appUser?.role === 'master_br' ? 'Master Brasil' :
+                     appUser?.role === 'regional' ? 'Regional' :
+                     appUser?.role === 'franchisee' ? 'Franqueado' : 'Usuário'} 
+                    {appUser?.city_name && ` • ${appUser.city_name}`}
+                  </p>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={handleSignOut}
+                  title="Sair"
+                  className="flex-shrink-0 text-white hover:bg-slate-700 p-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
-      </header>
+      </aside>
 
-      <div className="flex">
-        {/* Sidebar - Desktop */}
-        <aside className="hidden md:flex w-64 border-r border-border bg-card">
-          <div className="p-6 w-full">
-            <Navigation />
+      {/* Main Content Area with Header */}
+      <div className="flex-1 flex flex-col">
+        {/* Header - Only over main content */}
+        <header className="bg-white border-b border-gray-200 shadow-sm h-16 flex items-center px-6">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-4">
+              <div className="md:hidden">
+                {/* Mobile: Show current page or app name */}
+                <h1 className="text-xl font-bold text-gray-900">Master Salvador</h1>
+                <p className="text-xs text-gray-500">Gestão de Locação</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Logo Master Salvador - lado direito */}
+              <img 
+                src="https://i.postimg.cc/Qx6F2FNQ/logo.png" 
+                alt="Master Salvador Logo" 
+                className="h-12 w-auto"
+              />
+            </div>
           </div>
-        </aside>
+        </header>
 
         {/* Main Content */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 bg-gray-50">
           {children}
         </main>
       </div>

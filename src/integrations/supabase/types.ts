@@ -195,6 +195,120 @@ export type Database = {
           },
         ]
       }
+      motorcycles: {
+        Row: {
+          city_id: string
+          codigo_cs: string | null
+          created_at: string
+          data_criacao: string
+          data_ultima_mov: string | null
+          franchisee_id: string | null
+          id: string
+          modelo: string
+          observacoes: string | null
+          placa: string
+          status: string
+          tipo: string | null
+          updated_at: string
+          valor_semanal: number | null
+        }
+        Insert: {
+          city_id: string
+          codigo_cs?: string | null
+          created_at?: string
+          data_criacao?: string
+          data_ultima_mov?: string | null
+          franchisee_id?: string | null
+          id?: string
+          modelo: string
+          observacoes?: string | null
+          placa: string
+          status?: string
+          tipo?: string | null
+          updated_at?: string
+          valor_semanal?: number | null
+        }
+        Update: {
+          city_id?: string
+          codigo_cs?: string | null
+          created_at?: string
+          data_criacao?: string
+          data_ultima_mov?: string | null
+          franchisee_id?: string | null
+          id?: string
+          modelo?: string
+          observacoes?: string | null
+          placa?: string
+          status?: string
+          tipo?: string | null
+          updated_at?: string
+          valor_semanal?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "motorcycles_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "motorcycles_franchisee_id_fkey"
+            columns: ["franchisee_id"]
+            isOneToOne: false
+            referencedRelation: "franchisees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      franchisees: {
+        Row: {
+          id: string
+          cnpj: string
+          company_name: string
+          fantasy_name: string
+          city_id: string
+          status: string
+          user_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          cnpj: string
+          company_name: string
+          fantasy_name: string
+          city_id: string
+          status?: string
+          user_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          cnpj?: string
+          company_name?: string
+          fantasy_name?: string
+          city_id?: string
+          status?: string
+          user_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "franchisees_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "franchisees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       v_admin_kpis: {
