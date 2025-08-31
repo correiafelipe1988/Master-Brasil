@@ -22,6 +22,7 @@ import Deals from "./pages/Deals";
 import MotorcycleManagement from "./pages/MotorcycleManagement";
 import VendaMotos from "./pages/VendaMotos";
 import ClientManagement from "./pages/ClientManagement";
+import Locacoes from "./pages/Locacoes";
 import ProjecaoCrescimento from "./pages/ProjecaoCrescimento";
 import Rastreadores from "./pages/Rastreadores";
 import DistratosLocacoes from "./pages/DistratosLocacoes";
@@ -119,6 +120,14 @@ const App = () => (
               <ProtectedRoute requireRole="regional">
                 <Layout>
                   <ClientManagement />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/locacoes" element={
+              <ProtectedRoute>
+                <Layout>
+                  <Locacoes />
                 </Layout>
               </ProtectedRoute>
             } />

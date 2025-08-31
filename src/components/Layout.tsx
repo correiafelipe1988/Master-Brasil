@@ -19,7 +19,8 @@ import {
   Box,
   Wrench,
   DollarSign,
-  Users
+  Users,
+  Calendar
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboard } from '@/contexts/DashboardContext';
@@ -59,6 +60,7 @@ export function Layout({ children }: LayoutProps) {
   const baseNavItems = [
     { href: '/', icon: LayoutGrid, label: 'Dashboard', subtitle: 'Visão geral' },
     { href: '/motos', icon: Bike, label: 'Gestão de Motos', subtitle: 'Frota completa' },
+    { href: '/locacoes', icon: Calendar, label: 'Locações', subtitle: 'Gestão de locações' },
     { href: '/vendas', icon: DollarSign, label: 'Venda de Motos', subtitle: 'Registro de vendas' },
     { href: '/projecao', icon: TrendingUp, label: 'Projeção de Crescimento', subtitle: 'Meta 1.000 motos' },
     { href: '/rastreadores', icon: Radio, label: 'Rastreadores', subtitle: 'Nossos rastreadores' },
@@ -73,9 +75,9 @@ export function Layout({ children }: LayoutProps) {
   // Adicionar item Clientes apenas para usuários regionais
   const navItems = appUser?.role === 'regional'
     ? [
-        ...baseNavItems.slice(0, 2), // Dashboard e Gestão de Motos
+        ...baseNavItems.slice(0, 3), // Dashboard, Gestão de Motos e Locações
         { href: '/clientes', icon: Users, label: 'Clientes', subtitle: 'Gestão de clientes' },
-        ...baseNavItems.slice(2) // Resto dos itens
+        ...baseNavItems.slice(3) // Resto dos itens
       ]
     : baseNavItems;
 
