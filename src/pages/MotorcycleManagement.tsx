@@ -593,10 +593,8 @@ export default function MotorcycleManagement() {
 
         console.log('[MotorcycleManagement] Moto inserida:', data);
 
-        // Adicionar à lista local
-        if (data && data[0]) {
-          setMotorcycles(prev => [data[0] as Motorcycle, ...prev]);
-        }
+        // Recarregar os dados do banco para garantir que as informações do franqueado apareçam
+        fetchMotorcycles();
 
         toast({
           title: "Moto Adicionada!",
@@ -615,7 +613,7 @@ export default function MotorcycleManagement() {
         variant: "destructive",
       });
     }
-  }, [toast, editingMotorcycle, appUser]);
+  }, [toast, editingMotorcycle, appUser, fetchMotorcycles]);
 
   const handleOpenAddModal = useCallback(() => {
     // Verificar se o usuário tem uma cidade associada antes de abrir o modal
