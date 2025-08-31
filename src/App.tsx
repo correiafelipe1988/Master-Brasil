@@ -17,7 +17,10 @@ import TestAuth from "./pages/TestAuth";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import FranchiseeManagement from "./pages/FranchiseeManagement";
 import FranchiseeDashboard from "./pages/FranchiseeDashboard";
+import FranchiseeReports from "./pages/FranchiseeReports";
+import Deals from "./pages/Deals";
 import MotorcycleManagement from "./pages/MotorcycleManagement";
+import ClientManagement from "./pages/ClientManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,7 +56,15 @@ const App = () => (
                 </Layout>
               </ProtectedRoute>
             } />
-            
+
+            <Route path="/franchisee-reports" element={
+              <ProtectedRoute requireRole="franchisee">
+                <Layout>
+                  <FranchiseeReports />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
             <Route path="/leads" element={
               <ProtectedRoute>
                 <Layout>
@@ -65,7 +76,7 @@ const App = () => (
             <Route path="/deals" element={
               <ProtectedRoute>
                 <Layout>
-                  <div>Deals (Em construção)</div>
+                  <Deals />
                 </Layout>
               </ProtectedRoute>
             } />
@@ -85,7 +96,15 @@ const App = () => (
                 </Layout>
               </ProtectedRoute>
             } />
-            
+
+            <Route path="/clientes" element={
+              <ProtectedRoute requireRole="regional">
+                <Layout>
+                  <ClientManagement />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
             {/* Admin routes */}
             <Route path="/admin" element={
               <ProtectedRoute requireRole="admin">
@@ -112,7 +131,7 @@ const App = () => (
             } />
             
             <Route path="/franchisees" element={
-              <ProtectedRoute requireRole={["admin", "master_br", "regional"]}>
+              <ProtectedRoute requireRole={["admin", "master_br", "regional", "franchisee"]}>
                 <Layout>
                   <FranchiseeManagement />
                 </Layout>

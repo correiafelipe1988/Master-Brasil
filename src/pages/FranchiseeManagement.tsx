@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Grid3x3, TableIcon, Car, Settings, AlertTriangle, CheckCircle, Shield, Wifi, FileText, Bike, BarChart3, Wrench, Clock, XCircle, DollarSign, Zap, MapPin } from 'lucide-react';
+import { Users, Grid3x3, TableIcon, Car, Settings, AlertTriangle, CheckCircle, Shield, Wifi, FileText, Bike, BarChart3, Wrench, Clock, XCircle, DollarSign, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Franchisee {
@@ -93,6 +93,9 @@ export default function FranchiseeManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { appUser } = useAuth();
+
+  // Debug: Log para verificar se a página está sendo carregada
+  console.log('[FranchiseeManagement] Página carregada, role do usuário:', appUser?.role);
   const { toast } = useToast();
 
   // Estados para a funcionalidade da frota
@@ -324,17 +327,21 @@ export default function FranchiseeManagement() {
   const fetchMotorcyclesForFleet = async () => {
     try {
       console.log('[FranchiseeManagement] Buscando dados das motos para análise da frota...');
-      
+      console.log('[FranchiseeManagement] Usuário atual:', appUser);
+
       // Primeiro, buscar dados dos franqueados para criar o mapeamento
       const { data: franchiseesData, error: franchiseesError } = await supabase
         .from('franchisees')
         .select('id, company_name, fantasy_name, user_id');
+
+      console.log('[FranchiseeManagement] Dados dos franqueados:', { franchiseesData, franchiseesError });
 
       if (franchiseesError) {
         console.error('[FranchiseeManagement] Erro ao buscar franqueados:', franchiseesError);
       }
 
       // Criar mapeamento de user_id para nome do franqueado
+      // O franchisee_id na tabela motorcycles armazena o user_id do franqueado
       const franchiseeMap: Record<string, string> = {};
       franchiseesData?.forEach(franchisee => {
         if (franchisee.user_id) {
@@ -360,6 +367,27 @@ export default function FranchiseeManagement() {
           if (appUser.city_id) {
             query = query.eq('city_id', appUser.city_id);
             console.log('[FranchiseeManagement] Filtrando por city_id:', appUser.city_id);
+          }
+          break;
+        case 'franchisee':
+          // Franqueado vê apenas suas próprias motos
+          console.log('[FranchiseeManagement] Usuário é franqueado, buscando dados do franchisee...');
+          if (appUser.id) {
+            // Buscar o franchisee_id do usuário atual
+            console.log('[FranchiseeManagement] Buscando franchisee para user_id:', appUser.id);
+            const { data: franchiseeData, error: franchiseeError } = await supabase
+              .from('franchisees')
+              .select('id')
+              .eq('user_id', appUser.id)
+              .single();
+
+            console.log('[FranchiseeManagement] Resultado da busca do franchisee:', { franchiseeData, franchiseeError });
+
+            if (franchiseeData?.id) {
+              // O franchisee_id na tabela motorcycles armazena o user_id, não o id da tabela franchisees
+              query = query.eq('franchisee_id', appUser.id);
+              console.log('[FranchiseeManagement] Filtrando por franchisee_id (user_id):', appUser.id);
+            }
           }
           break;
         default:
@@ -440,9 +468,13 @@ export default function FranchiseeManagement() {
         `)
         .order('created_at', { ascending: false });
 
-      // Se for regional, filtrar por cidade
+      // Aplicar filtros baseados no papel do usuário
       if (appUser?.role === 'regional' && appUser.city_id) {
+        // Regional vê franqueados da sua cidade
         query = query.eq('city_id', appUser.city_id);
+      } else if (appUser?.role === 'franchisee' && appUser.id) {
+        // Franqueado vê apenas seus próprios dados
+        query = query.eq('user_id', appUser.id);
       }
 
       const { data, error } = await query;
@@ -636,22 +668,31 @@ export default function FranchiseeManagement() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-6 w-6" />
-                Franqueados - Análise por franqueado
+                {appUser?.role === 'franchisee' ? 'Minha Frota' : 'Franqueados - Análise por franqueado'}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Cadastre e analise a performance dos franqueados da sua região
+                {appUser?.role === 'franchisee'
+                  ? 'Visualize e acompanhe o status da sua frota de motocicletas'
+                  : 'Cadastre e analise a performance dos franqueados da sua região'
+                }
               </p>
             </div>
           </div>
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="cadastro" className="w-full">
-        <TabsList className={`grid w-full ${appUser?.role === 'admin' || appUser?.role === 'master_br' ? 'grid-cols-4' : 'grid-cols-3'}`}>
-          <TabsTrigger value="cadastro" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Cadastro
-          </TabsTrigger>
+      <Tabs defaultValue={appUser?.role === 'franchisee' ? 'frota-tabela' : 'cadastro'} className="w-full">
+        <TabsList className={`grid w-full ${
+          appUser?.role === 'admin' || appUser?.role === 'master_br' ? 'grid-cols-4' :
+          appUser?.role === 'franchisee' ? 'grid-cols-2' : 'grid-cols-3'
+        }`}>
+          {/* Franqueados não veem a aba de Cadastro */}
+          {appUser?.role !== 'franchisee' && (
+            <TabsTrigger value="cadastro" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Cadastro
+            </TabsTrigger>
+          )}
           <TabsTrigger value="frota-tabela" className="flex items-center gap-2">
             <TableIcon className="h-4 w-4" />
             Frota - Tabela
@@ -668,7 +709,10 @@ export default function FranchiseeManagement() {
           )}
         </TabsList>
         
-        <TabsContent value="cadastro">{renderCadastroContent()}</TabsContent>
+        {/* Franqueados não veem o conteúdo de cadastro */}
+        {appUser?.role !== 'franchisee' && (
+          <TabsContent value="cadastro">{renderCadastroContent()}</TabsContent>
+        )}
         <TabsContent value="frota-tabela">{renderFrotaTabelaContent()}</TabsContent>
         <TabsContent value="frota-cards">{renderFrotaCardsContent()}</TabsContent>
         {(appUser?.role === 'admin' || appUser?.role === 'master_br') && (

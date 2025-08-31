@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -431,10 +430,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const { dashboardData, setDashboardData, isLoading, setIsLoading } = useDashboard();
 
-  // Redirecionar franqueados para seu dashboard específico
-  if (appUser?.role === 'franchisee') {
-    return <Navigate to="/franchisee-dashboard" replace />;
-  }
+
 
   useEffect(() => {
     const updateTimestamp = () => {
@@ -471,11 +467,31 @@ export default function Dashboard() {
         // Fazer query real na tabela motorcycles
         console.log('[Dashboard] Fazendo query na tabela motorcycles...');
 
+        // Para franqueados, buscar primeiro os dados da franquia para obter city_id
+        let cityId = appUser.city_id;
+
+        if (appUser.role === 'franchisee' && !cityId) {
+          console.log('[Dashboard] Buscando dados do franqueado para obter city_id...');
+          const { data: franchiseeData, error: franchiseeError } = await supabase
+            .from('franchisees')
+            .select('city_id')
+            .eq('user_id', appUser.id)
+            .single();
+
+          if (franchiseeError) {
+            console.error('[Dashboard] Erro ao buscar dados do franqueado:', franchiseeError);
+            throw franchiseeError;
+          }
+
+          cityId = franchiseeData?.city_id;
+          console.log('[Dashboard] City_id do franqueado encontrado:', cityId);
+        }
+
         // Construir query baseada no papel do usuário
         let query = supabase.from('motorcycles').select('*');
 
         // Aplicar filtros baseados no papel do usuário
-        console.log('[Dashboard] Aplicando filtros para papel:', appUser.role, 'cidade:', appUser.city_id);
+        console.log('[Dashboard] Aplicando filtros para papel:', appUser.role, 'cidade:', cityId);
 
         switch (appUser.role) {
           case 'admin':
@@ -484,22 +500,18 @@ export default function Dashboard() {
             console.log('[Dashboard] Usuário admin/master_br - mostrando todas as motos');
             break;
           case 'regional':
-            // Regional vê apenas motos da sua cidade
-            if (appUser.city_id) {
-              query = query.eq('city_id', appUser.city_id);
-              console.log('[Dashboard] Usuário regional - filtrando por city_id:', appUser.city_id);
-            }
-            break;
           case 'franchisee':
-            // Franchisee vê apenas suas motos
-            query = query.eq('franchisee_id', appUser.id);
-            console.log('[Dashboard] Usuário franchisee - filtrando por franchisee_id:', appUser.id);
+            // Regional e Franchisee veem apenas motos da sua cidade
+            if (cityId) {
+              query = query.eq('city_id', cityId);
+              console.log('[Dashboard] Usuário regional/franchisee - filtrando por city_id:', cityId);
+            }
             break;
           default:
             // Caso padrão: filtrar por cidade se disponível
-            if (appUser.city_id) {
-              query = query.eq('city_id', appUser.city_id);
-              console.log('[Dashboard] Usuário padrão - filtrando por city_id:', appUser.city_id);
+            if (cityId) {
+              query = query.eq('city_id', cityId);
+              console.log('[Dashboard] Usuário padrão - filtrando por city_id:', cityId);
             }
         }
 

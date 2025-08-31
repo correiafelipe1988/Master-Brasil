@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { 
-  Menu, 
-  Building, 
-  BarChart3, 
+import {
+  Menu,
+  Building,
+  BarChart3,
   Settings,
   LogOut,
   Store,
@@ -18,7 +18,8 @@ import {
   BarChart2,
   Box,
   Wrench,
-  DollarSign
+  DollarSign,
+  Users
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboard } from '@/contexts/DashboardContext';
@@ -55,7 +56,7 @@ export function Layout({ children }: LayoutProps) {
     }
   };
 
-  const navItems = [
+  const baseNavItems = [
     { href: '/', icon: LayoutGrid, label: 'Dashboard', subtitle: 'Visão geral' },
     { href: '/motos', icon: Bike, label: 'Gestão de Motos', subtitle: 'Frota completa' },
     { href: '/vendas', icon: DollarSign, label: 'Venda de Motos', subtitle: 'Registro de vendas' },
@@ -68,6 +69,15 @@ export function Layout({ children }: LayoutProps) {
     { href: '/frota', icon: Box, label: 'Frota', subtitle: 'Análise de modelos' },
     { href: '/manutencao', icon: Wrench, label: 'Manutenção', subtitle: 'Gestão de manutenção' },
   ];
+
+  // Adicionar item Clientes apenas para usuários regionais
+  const navItems = appUser?.role === 'regional'
+    ? [
+        ...baseNavItems.slice(0, 2), // Dashboard e Gestão de Motos
+        { href: '/clientes', icon: Users, label: 'Clientes', subtitle: 'Gestão de clientes' },
+        ...baseNavItems.slice(2) // Resto dos itens
+      ]
+    : baseNavItems;
 
   const adminItems = [
     { href: '/admin', icon: BarChart3, label: 'Visão Geral' },

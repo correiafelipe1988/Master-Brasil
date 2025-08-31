@@ -46,13 +46,38 @@ export default function Leads() {
   const fetchLeads = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+
+      // Para franqueados, buscar primeiro os dados da franquia para obter city_id
+      let cityId = appUser?.city_id;
+
+      if (appUser?.role === 'franchisee' && !cityId) {
+        const { data: franchiseeData, error: franchiseeError } = await supabase
+          .from('franchisees')
+          .select('city_id')
+          .eq('user_id', appUser.id)
+          .single();
+
+        if (franchiseeError) {
+          console.error('Erro ao buscar dados do franqueado:', franchiseeError);
+          return;
+        }
+
+        cityId = franchiseeData?.city_id;
+      }
+
+      let query = supabase
         .from('leads')
         .select(`
           *,
           cities:city_id (name)
-        `)
-        .order('created_at', { ascending: false });
+        `);
+
+      // Filtrar por cidade para usuários regionais e franqueados
+      if ((appUser?.role === 'regional' || appUser?.role === 'franchisee') && cityId) {
+        query = query.eq('city_id', cityId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
       setLeads(data || []);
@@ -81,11 +106,29 @@ export default function Leads() {
     }
 
     try {
+      // Determinar city_id baseado no role do usuário
+      let cityId = appUser?.city_id;
+
+      if (appUser?.role === 'franchisee' && !cityId) {
+        const { data: franchiseeData, error: franchiseeError } = await supabase
+          .from('franchisees')
+          .select('city_id')
+          .eq('user_id', appUser.id)
+          .single();
+
+        if (franchiseeError) {
+          throw new Error('Erro ao buscar dados do franqueado');
+        }
+
+        cityId = franchiseeData?.city_id;
+      }
+
       const leadData = {
         name: formData.name.trim(),
         phone: formData.phone.trim() || null,
         source: formData.source.trim() || null,
-        status: formData.status || 'novo'
+        status: formData.status || 'novo',
+        city_id: cityId
       };
 
       let error;

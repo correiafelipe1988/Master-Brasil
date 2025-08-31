@@ -1,11 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+
 import { Download, PlusCircle, Edit, Trash2, Bike } from 'lucide-react';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
@@ -345,10 +344,7 @@ export default function MotorcycleManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const { appUser } = useAuth();
 
-  // Redirecionar franqueados para seu dashboard específico
-  if (appUser?.role === 'franchisee') {
-    return <Navigate to="/franchisee-dashboard" replace />;
-  }
+
 
   const fetchMotorcycles = useCallback(async () => {
     if (!appUser) {
@@ -408,6 +404,26 @@ export default function MotorcycleManagement() {
         throw testErr;
       }
 
+      // Para franqueados, buscar primeiro os dados da franquia para obter city_id
+      let cityId = appUser.city_id;
+
+      if (appUser.role === 'franchisee' && !cityId) {
+        console.log('[MotorcycleManagement] Buscando dados do franqueado para obter city_id...');
+        const { data: franchiseeData, error: franchiseeError } = await supabase
+          .from('franchisees')
+          .select('city_id')
+          .eq('user_id', appUser.id)
+          .single();
+
+        if (franchiseeError) {
+          console.error('[MotorcycleManagement] Erro ao buscar dados do franqueado:', franchiseeError);
+          throw franchiseeError;
+        }
+
+        cityId = franchiseeData?.city_id;
+        console.log('[MotorcycleManagement] City_id do franqueado encontrado:', cityId);
+      }
+
       // Construir a query baseada no papel do usuário
       console.log('[MotorcycleManagement] Construindo query para usuário:', appUser.role);
 
@@ -443,28 +459,20 @@ export default function MotorcycleManagement() {
           console.log('[MotorcycleManagement] Usuário admin/master_br - carregando todas as motos');
           break;
         case 'regional':
-          // Regional vê apenas motos da sua cidade
-          if (appUser.city_id) {
-            console.log('[MotorcycleManagement] Usuário regional - filtrando por cidade:', appUser.city_id);
-            query = query.eq('city_id', appUser.city_id);
-          } else {
-            console.warn('[MotorcycleManagement] Usuário regional sem cidade - carregando todas as motos');
-          }
-          break;
         case 'franchisee':
-          // Franqueado vê motos da sua cidade
-          if (appUser.city_id) {
-            console.log('[MotorcycleManagement] Usuário franqueado - filtrando por cidade:', appUser.city_id);
-            query = query.eq('city_id', appUser.city_id);
+          // Regional e Franqueado veem apenas motos da sua cidade
+          if (cityId) {
+            console.log('[MotorcycleManagement] Usuário regional/franqueado - filtrando por cidade:', cityId);
+            query = query.eq('city_id', cityId);
           } else {
-            console.warn('[MotorcycleManagement] Usuário franqueado sem cidade - carregando todas as motos');
+            console.warn('[MotorcycleManagement] Usuário regional/franqueado sem cidade - carregando todas as motos');
           }
           break;
         default:
           // Filtrar por cidade se disponível
-          if (appUser.city_id) {
-            console.log('[MotorcycleManagement] Usuário padrão - filtrando por cidade:', appUser.city_id);
-            query = query.eq('city_id', appUser.city_id);
+          if (cityId) {
+            console.log('[MotorcycleManagement] Usuário padrão - filtrando por cidade:', cityId);
+            query = query.eq('city_id', cityId);
           }
       }
 
@@ -619,6 +627,16 @@ export default function MotorcycleManagement() {
   }, [toast, editingMotorcycle, appUser, fetchMotorcycles]);
 
   const handleOpenAddModal = useCallback(() => {
+    // Franqueados não podem adicionar motos
+    if (appUser?.role === 'franchisee') {
+      toast({
+        title: "Acesso Negado",
+        description: "Franqueados podem apenas visualizar as motos. Não é possível adicionar novas motos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Verificar se o usuário tem uma cidade associada antes de abrir o modal
     if (!appUser?.city_id) {
       toast({
@@ -628,15 +646,25 @@ export default function MotorcycleManagement() {
       });
       return;
     }
-    
+
     setEditingMotorcycle(null);
     setIsModalOpen(true);
   }, [appUser, toast]);
 
   const handleOpenEditModal = useCallback((motorcycle: Motorcycle) => {
+    // Franqueados não podem editar motos
+    if (appUser?.role === 'franchisee') {
+      toast({
+        title: "Acesso Negado",
+        description: "Franqueados podem apenas visualizar as motos. Não é possível editar motos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setEditingMotorcycle(motorcycle);
     setIsModalOpen(true);
-  }, []);
+  }, [appUser?.role, toast]);
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
@@ -661,9 +689,19 @@ export default function MotorcycleManagement() {
   }, [toast]);
 
   const handleDeleteMotorcycle = useCallback(async (motorcycleId: string) => {
+    // Franqueados não podem deletar motos
+    if (appUser?.role === 'franchisee') {
+      toast({
+        title: "Acesso Negado",
+        description: "Franqueados podem apenas visualizar as motos. Não é possível excluir motos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       console.log('[MotorcycleManagement] Tentando excluir moto com ID:', motorcycleId);
-      
+
       const { data, error, count } = await supabase
         .from('motorcycles')
         .delete()
@@ -702,7 +740,7 @@ export default function MotorcycleManagement() {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [appUser?.role, toast]);
 
   const handleExportCSV = useCallback(() => {
     if (motorcycles.length === 0) {
@@ -764,10 +802,13 @@ export default function MotorcycleManagement() {
         <Download className="mr-2 h-4 w-4" />
         Exportar CSV
       </Button>
-      <Button onClick={handleOpenAddModal}>
-        <PlusCircle className="mr-2 h-4 w-4" />
-        Nova Moto
-      </Button>
+      {/* Franqueados não podem adicionar motos */}
+      {appUser?.role !== 'franchisee' && (
+        <Button onClick={handleOpenAddModal}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Nova Moto
+        </Button>
+      )}
     </div>
   );
 
@@ -880,7 +921,9 @@ export default function MotorcycleManagement() {
                   <th className="text-left p-3 font-medium text-muted-foreground">Valor Semanal</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Últ. Movimento</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Ociosa (Dias)</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Ações</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">
+                    {appUser?.role === 'franchisee' ? 'Status' : 'Ações'}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -952,25 +995,32 @@ export default function MotorcycleManagement() {
                       </td>
                       <td className="p-3">
                         <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenEditModal(motorcycle)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedMotorcycleId(motorcycle.id);
-                              setIsDeleteAllAlertOpen(true);
-                            }}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          {/* Franqueados não podem editar ou deletar motos */}
+                          {appUser?.role !== 'franchisee' ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEditModal(motorcycle)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedMotorcycleId(motorcycle.id);
+                                  setIsDeleteAllAlertOpen(true);
+                                }}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="text-sm text-gray-500 px-2">Somente leitura</span>
+                          )}
                         </div>
                       </td>
                     </tr>
