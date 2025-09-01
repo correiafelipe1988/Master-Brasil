@@ -73,8 +73,13 @@ export function useFleetData() {
             query = query.eq('city_id', appUser.city_id);
           }
           break;
+        case 'franchisee':
+          // Franqueado vê APENAS as motos atribuídas a ele (franchisee_id = user.id)
+          console.log('[useFleetData] Usuário franqueado - filtrando por franchisee_id:', appUser.id);
+          query = query.eq('franchisee_id', appUser.id);
+          break;
         default:
-          console.log('Papel de usuário:', appUser?.role);
+          console.log('Papel de usuário não reconhecido:', appUser?.role);
       }
 
       query = query.order('created_at', { ascending: false });

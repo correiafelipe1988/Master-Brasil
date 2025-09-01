@@ -459,14 +459,18 @@ export default function MotorcycleManagement() {
           console.log('[MotorcycleManagement] Usuário admin/master_br - carregando todas as motos');
           break;
         case 'regional':
-        case 'franchisee':
-          // Regional e Franqueado veem apenas motos da sua cidade
+          // Regional vê todas as motos da sua cidade
           if (cityId) {
-            console.log('[MotorcycleManagement] Usuário regional/franqueado - filtrando por cidade:', cityId);
+            console.log('[MotorcycleManagement] Usuário regional - filtrando por cidade:', cityId);
             query = query.eq('city_id', cityId);
           } else {
-            console.warn('[MotorcycleManagement] Usuário regional/franqueado sem cidade - carregando todas as motos');
+            console.warn('[MotorcycleManagement] Usuário regional sem cidade - carregando todas as motos');
           }
+          break;
+        case 'franchisee':
+          // Franqueado vê APENAS as motos atribuídas a ele (franchisee_id = user.id)
+          console.log('[MotorcycleManagement] Usuário franqueado - filtrando por franchisee_id:', appUser.id);
+          query = query.eq('franchisee_id', appUser.id);
           break;
         default:
           // Filtrar por cidade se disponível

@@ -61,10 +61,10 @@ export function Layout({ children }: LayoutProps) {
     { href: '/', icon: LayoutGrid, label: 'Dashboard', subtitle: 'Visão geral' },
     { href: '/motos', icon: Bike, label: 'Gestão de Motos', subtitle: 'Frota completa' },
     { href: '/locacoes', icon: Calendar, label: 'Locações', subtitle: 'Gestão de locações' },
-    { href: '/vendas', icon: DollarSign, label: 'Venda de Motos', subtitle: 'Registro de vendas' },
-    { href: '/projecao', icon: TrendingUp, label: 'Projeção de Crescimento', subtitle: 'Meta 1.000 motos' },
-    { href: '/rastreadores', icon: Radio, label: 'Rastreadores', subtitle: 'Nossos rastreadores' },
-    { href: '/distratos', icon: AlertTriangle, label: 'Distratos Locações', subtitle: 'Contratos encerrados' },
+    { href: '/vendas', icon: DollarSign, label: 'Venda de Motos', subtitle: 'Registro de vendas', restrictedRoles: ['franchisee'] },
+    { href: '/projecao', icon: TrendingUp, label: 'Projeção de Crescimento', subtitle: 'Meta 1.000 motos', restrictedRoles: ['franchisee'] },
+    { href: '/rastreadores', icon: Radio, label: 'Rastreadores', subtitle: 'Nossos rastreadores', restrictedRoles: ['franchisee'] },
+    { href: '/distratos', icon: AlertTriangle, label: 'Distratos Locações', subtitle: 'Contratos encerrados', restrictedRoles: ['franchisee'] },
     { href: '/franchisees', icon: Store, label: 'Franqueados', subtitle: 'Análise por franqueado' },
     { href: '/financeiro', icon: PiggyBank, label: 'Financeiro', subtitle: 'Receitas e análises' },
     { href: '/ociosidade', icon: BarChart2, label: 'Previsão de Ociosidade', subtitle: 'IA para tempo ocioso' },
@@ -72,14 +72,30 @@ export function Layout({ children }: LayoutProps) {
     { href: '/manutencao', icon: Wrench, label: 'Manutenção', subtitle: 'Gestão de manutenção' },
   ];
 
-  // Adicionar item Clientes apenas para usuários regionais
-  const navItems = appUser?.role === 'regional'
-    ? [
-        ...baseNavItems.slice(0, 3), // Dashboard, Gestão de Motos e Locações
+  // Filtrar itens baseado no role do usuário
+  const getFilteredNavItems = () => {
+    // Filtrar itens que o usuário atual não pode ver
+    let filteredItems = baseNavItems.filter(item => {
+      // Se o item tem restrictedRoles e o usuário atual está nessa lista, ocultar
+      if (item.restrictedRoles && appUser?.role && item.restrictedRoles.includes(appUser.role)) {
+        return false;
+      }
+      return true;
+    });
+
+    // Adicionar item Clientes apenas para usuários regionais
+    if (appUser?.role === 'regional') {
+      filteredItems = [
+        ...filteredItems.slice(0, 3), // Dashboard, Gestão de Motos e Locações
         { href: '/clientes', icon: Users, label: 'Clientes', subtitle: 'Gestão de clientes' },
-        ...baseNavItems.slice(3) // Resto dos itens
-      ]
-    : baseNavItems;
+        ...filteredItems.slice(3) // Resto dos itens filtrados
+      ];
+    }
+
+    return filteredItems;
+  };
+
+  const navItems = getFilteredNavItems();
 
   const adminItems = [
     { href: '/admin', icon: BarChart3, label: 'Visão Geral' },

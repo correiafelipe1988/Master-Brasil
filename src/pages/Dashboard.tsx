@@ -23,8 +23,79 @@ const monthNames = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
+// Função para calcular dados específicos do mês selecionado
+const calculateMonthData = (motorcycles: any[], selectedMonth: number, selectedYear: number) => {
+  const monthData = {
+    motosAlugadas: 0,
+    motosRelocadas: 0,
+    motosDisponiveis: 0,
+    motosRecuperadas: 0,
+    emManutencao: 0
+  };
+
+  // Filtrar motos por movimentações no mês/ano selecionado
+  const uniqueMotorcyclesByPlaca: { [placa: string]: any } = {};
+  
+  motorcycles.forEach(moto => {
+    if (!moto.placa) return;
+    
+    // Verificar se a movimentação foi no mês/ano selecionado
+    let isFromSelectedMonth = false;
+    
+    if (moto.data_ultima_mov) {
+      try {
+        const movDate = parseISO(moto.data_ultima_mov);
+        if (isValid(movDate) && 
+            movDate.getMonth() === selectedMonth && 
+            movDate.getFullYear() === selectedYear) {
+          isFromSelectedMonth = true;
+        }
+      } catch (e) {
+        console.warn('Erro ao processar data:', moto.data_ultima_mov);
+      }
+    }
+
+    // Se não há movimentação no mês selecionado, usar status atual apenas para o mês atual
+    if (!isFromSelectedMonth && 
+        (selectedMonth !== new Date().getMonth() || selectedYear !== new Date().getFullYear())) {
+      return;
+    }
+
+    // Pegar a moto mais recente por placa
+    const existingMoto = uniqueMotorcyclesByPlaca[moto.placa];
+    if (!existingMoto || (moto.data_ultima_mov && 
+        (!existingMoto.data_ultima_mov || new Date(moto.data_ultima_mov) > new Date(existingMoto.data_ultima_mov)))) {
+      uniqueMotorcyclesByPlaca[moto.placa] = moto;
+    }
+  });
+
+  // Contar por status
+  Object.values(uniqueMotorcyclesByPlaca).forEach(moto => {
+    const status = moto.status || 'active';
+    switch (status) {
+      case 'alugada':
+        monthData.motosAlugadas++;
+        break;
+      case 'relocada':
+        monthData.motosRelocadas++;
+        break;
+      case 'active':
+        monthData.motosDisponiveis++;
+        break;
+      case 'recolhida':
+        monthData.motosRecuperadas++;
+        break;
+      case 'manutencao':
+        monthData.emManutencao++;
+        break;
+    }
+  });
+
+  return monthData;
+};
+
 // Função para processar dados reais das motos
-const processRealMotorcycleData = (motorcycles: any[]) => {
+const processRealMotorcycleData = (motorcycles: any[], selectedMonth: number, selectedYear: number) => {
   const today = new Date();
   const todayStart = startOfDay(today);
   
@@ -162,13 +233,7 @@ const processRealMotorcycleData = (motorcycles: any[]) => {
       motosRecuperadasHoje,
       motosEmManutencao: statusCounts.manutencao || 0
     },
-    monthData: {
-      motosAlugadas: statusCounts.alugada || 0,
-      motosRelocadas: statusCounts.relocada || 0,
-      motosDisponiveis: statusCounts.active || 0,
-      motosRecuperadas: statusCounts.recolhida || 0,
-      emManutencao: statusCounts.manutencao || 0
-    },
+    monthData: calculateMonthData(motorcycles, selectedMonth, selectedYear),
     kpi: {
       total: totalUniqueMotorcycles.toString(),
       locacoes: totalLocacoes.toString()
@@ -490,12 +555,16 @@ export default function Dashboard() {
             console.log('[Dashboard] Usuário admin/master_br - mostrando todas as motos');
             break;
           case 'regional':
-          case 'franchisee':
-            // Regional e Franchisee veem apenas motos da sua cidade
+            // Regional vê todas as motos da sua cidade
             if (cityId) {
               query = query.eq('city_id', cityId);
-              console.log('[Dashboard] Usuário regional/franchisee - filtrando por city_id:', cityId);
+              console.log('[Dashboard] Usuário regional - filtrando por city_id:', cityId);
             }
+            break;
+          case 'franchisee':
+            // Franqueado vê APENAS as motos atribuídas a ele (franchisee_id = user.id)
+            console.log('[Dashboard] Usuário franqueado - filtrando por franchisee_id:', appUser.id);
+            query = query.eq('franchisee_id', appUser.id);
             break;
           default:
             // Caso padrão: filtrar por cidade se disponível
@@ -524,7 +593,7 @@ export default function Dashboard() {
         // Processar dados baseados na tabela criada
         console.log('[Dashboard] Loaded data:', motorcycles?.length || 0, 'motorcycles');
         
-        const realData = processRealMotorcycleData(motorcycles || []);
+        const realData = processRealMotorcycleData(motorcycles || [], selectedMonth, selectedYear);
         console.log('[Dashboard] Processed real data:', realData);
         setDashboardData(realData);
 

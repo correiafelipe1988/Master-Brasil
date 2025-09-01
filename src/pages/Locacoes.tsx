@@ -181,8 +181,7 @@ export default function Locacoes() {
           // Admin e Master BR veem todas as locações
           break;
         case 'regional':
-        case 'franchisee':
-          // Regional e Franqueado veem apenas locações da sua cidade
+          // Regional vê locações de todos os franqueados da sua cidade
           if (cityId) {
             // Filtrar por franqueados da cidade (através do franchisee_id)
             const franchiseeIds = (await supabase
@@ -193,6 +192,22 @@ export default function Locacoes() {
             if (franchiseeIds.length > 0) {
               rentalsQuery = rentalsQuery.in('franchisee_id', franchiseeIds);
             }
+          }
+          break;
+        case 'franchisee':
+          // Franqueado vê APENAS suas próprias locações
+          const { data: franchiseeData } = await supabase
+            .from('franchisees')
+            .select('id')
+            .eq('user_id', appUser.id)
+            .single();
+          
+          if (franchiseeData?.id) {
+            console.log('🔍 [Locacoes] Franqueado - filtrando por franchisee_id:', franchiseeData.id);
+            rentalsQuery = rentalsQuery.eq('franchisee_id', franchiseeData.id);
+          } else {
+            // Se não encontrou o franchisee_id, não mostrar nenhuma locação
+            rentalsQuery = rentalsQuery.eq('franchisee_id', 'nenhum');
           }
           break;
       }
@@ -645,13 +660,15 @@ export default function Locacoes() {
           </p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Nova Locação
-            </Button>
-          </DialogTrigger>
+        {/* Franqueados não podem criar novas locações */}
+        {appUser?.role !== 'franchisee' && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Nova Locação
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nova Locação</DialogTitle>
@@ -913,6 +930,7 @@ export default function Locacoes() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Cards de Métricas */}
