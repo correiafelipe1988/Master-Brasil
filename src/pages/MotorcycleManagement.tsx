@@ -24,7 +24,13 @@ import { supabase } from '@/integrations/supabase/client';
 interface Motorcycle {
   id: string;
   placa: string;
+  chassi?: string;
+  renavam?: string;
   modelo: string;
+  marca?: string;
+  ano?: number;
+  cor?: string;
+  quilometragem?: number;
   status: 'active' | 'alugada' | 'relocada' | 'manutencao' | 'recolhida' | 'indisponivel_rastreador' | 'indisponivel_emplacamento' | 'inadimplente' | 'renegociado' | 'furto_roubo';
   codigo_cs?: string;
   tipo?: 'Nova' | 'Usada';
@@ -64,7 +70,13 @@ interface MotorcycleFormProps {
 function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: MotorcycleFormProps) {
   const [formData, setFormData] = useState({
     placa: editingMotorcycle?.placa || '',
+    chassi: editingMotorcycle?.chassi || '',
+    renavam: editingMotorcycle?.renavam || '',
     modelo: editingMotorcycle?.modelo || '',
+    marca: editingMotorcycle?.marca || '',
+    ano: editingMotorcycle?.ano?.toString() || '',
+    cor: editingMotorcycle?.cor || '',
+    quilometragem: editingMotorcycle?.quilometragem?.toString() || '',
     tipo: editingMotorcycle?.tipo || 'Usada',
     status: editingMotorcycle?.status || 'active',
     valor_semanal: editingMotorcycle?.valor_semanal?.toString() || '',
@@ -74,6 +86,9 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
     franchisee_id: editingMotorcycle?.franchisee_id || 'none',
     codigo_cs: editingMotorcycle?.codigo_cs || '',
   });
+  
+  const [isExistingPlate, setIsExistingPlate] = useState(false);
+  const [plateLoading, setPlateLoading] = useState(false);
 
   const [franchisees, setFranchisees] = useState<Array<{
     id: string,
@@ -115,6 +130,99 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
     fetchFranchisees();
   }, [appUser?.city_id]);
 
+  // Função para buscar dados de uma placa existente
+  const checkExistingPlate = async (placa: string) => {
+    if (placa.length < 7 || editingMotorcycle) return; // Só buscar se não estiver editando
+    
+    setPlateLoading(true);
+    try {
+      console.log('[MotorcycleForm] Buscando dados da placa:', placa);
+      
+      // Construir query baseada no papel do usuário (mesma lógica do load)
+      let query = supabase.from('motorcycles').select(`
+        id,
+        placa,
+        chassi,
+        renavam,
+        modelo,
+        marca,
+        ano,
+        cor,
+        quilometragem,
+        status,
+        tipo,
+        valor_semanal,
+        data_ultima_mov,
+        codigo_cs,
+        city_id,
+        franchisee_id,
+        franchisee:app_users!motorcycles_franchisee_id_fkey(
+          id,
+          email,
+          role,
+          franchisee_data:franchisees!franchisees_user_id_fkey(
+            company_name,
+            fantasy_name
+          )
+        )
+      `).eq('placa', placa);
+
+      // Aplicar mesmos filtros baseados no papel do usuário
+      switch (appUser?.role) {
+        case 'admin':
+        case 'master_br':
+          break;
+        case 'regional':
+          if (appUser.city_id) {
+            query = query.eq('city_id', appUser.city_id);
+          }
+          break;
+        case 'franchisee':
+          query = query.eq('franchisee_id', appUser.id);
+          break;
+      }
+
+      query = query.order('created_at', { ascending: false }).limit(1);
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('[MotorcycleForm] Erro ao buscar placa:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const existingMoto = data[0];
+        console.log('[MotorcycleForm] Placa existente encontrada:', existingMoto);
+        
+        // Auto-preencher formulário com dados existentes
+        setFormData(prev => ({
+          ...prev,
+          chassi: existingMoto.chassi || prev.chassi,
+          renavam: existingMoto.renavam || prev.renavam,
+          modelo: existingMoto.modelo || prev.modelo,
+          marca: existingMoto.marca || prev.marca,
+          ano: existingMoto.ano?.toString() || prev.ano,
+          cor: existingMoto.cor || prev.cor,
+          quilometragem: existingMoto.quilometragem?.toString() || prev.quilometragem,
+          tipo: (existingMoto.tipo as 'Nova' | 'Usada') || prev.tipo,
+          valor_semanal: existingMoto.valor_semanal?.toString() || prev.valor_semanal,
+          franchisee_id: existingMoto.franchisee_id || prev.franchisee_id,
+          codigo_cs: existingMoto.codigo_cs || prev.codigo_cs,
+        }));
+        
+        setIsExistingPlate(true);
+      } else {
+        console.log('[MotorcycleForm] Placa nova - permitir preenchimento completo');
+        setIsExistingPlate(false);
+      }
+    } catch (error) {
+      console.error('[MotorcycleForm] Erro na busca:', error);
+    } finally {
+      setPlateLoading(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -125,7 +233,13 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
     const motorcycleData: Motorcycle = {
       id: editingMotorcycle?.id || '',
       placa: formData.placa.toUpperCase(),
+      chassi: formData.chassi || undefined,
+      renavam: formData.renavam || undefined,
       modelo: formData.modelo,
+      marca: formData.marca || undefined,
+      ano: formData.ano ? parseInt(formData.ano) : undefined,
+      cor: formData.cor || undefined,
+      quilometragem: formData.quilometragem ? parseInt(formData.quilometragem) : undefined,
       tipo: formData.tipo as 'Nova' | 'Usada',
       status: formData.status as any,
       valor_semanal: formData.valor_semanal ? parseFloat(formData.valor_semanal) : undefined,
@@ -176,32 +290,88 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
       </div>
 
       <div className="space-y-4">
-        {/* Placa */}
-        <div className="space-y-2">
-          <Label htmlFor="placa" className="text-sm font-medium">
-            Placa <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="placa"
-            type="text"
-            placeholder="Ex: BRA2E19"
-            maxLength={8}
-            value={formData.placa}
-            onChange={(e) => setFormData(prev => ({ 
-              ...prev, 
-              placa: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') 
-            }))}
-            className="text-sm"
-            required
-          />
+        {/* Linha 1: Placa, Chassi, RENAVAM */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="placa" className="text-sm font-medium">
+              Placa <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="placa"
+              type="text"
+              placeholder="EX: BRA2E19"
+              maxLength={8}
+              value={formData.placa}
+              onChange={(e) => {
+                const newPlaca = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                setFormData(prev => ({ 
+                  ...prev, 
+                  placa: newPlaca
+                }));
+                
+                // Buscar dados da placa após 500ms de inatividade
+                if (newPlaca.length >= 7) {
+                  const timeoutId = setTimeout(() => {
+                    checkExistingPlate(newPlaca);
+                  }, 500);
+                  return () => clearTimeout(timeoutId);
+                } else {
+                  // Reset se placa for muito curta
+                  setIsExistingPlate(false);
+                }
+              }}
+              className="text-sm"
+              required
+            />
+            {plateLoading && (
+              <p className="text-xs text-blue-600">Verificando placa...</p>
+            )}
+            {isExistingPlate && (
+              <p className="text-xs text-green-600">✓ Placa existente - dados preenchidos automaticamente</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="chassi" className="text-sm font-medium">Chassi</Label>
+            <Input
+              id="chassi"
+              type="text"
+              placeholder="17 CARACTERES"
+              maxLength={17}
+              value={formData.chassi}
+              onChange={(e) => setFormData(prev => ({ ...prev, chassi: e.target.value.toUpperCase() }))}
+              className={`text-sm ${isExistingPlate ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={isExistingPlate}
+            />
+            {isExistingPlate && (
+              <p className="text-xs text-gray-500">Campo bloqueado - placa existente</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="renavam" className="text-sm font-medium">RENAVAM</Label>
+            <Input
+              id="renavam"
+              type="text"
+              placeholder="11 dígitos"
+              maxLength={11}
+              value={formData.renavam}
+              onChange={(e) => setFormData(prev => ({ ...prev, renavam: e.target.value.replace(/[^0-9]/g, '') }))}
+              className={`text-sm ${isExistingPlate ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={isExistingPlate}
+            />
+            {isExistingPlate && (
+              <p className="text-xs text-gray-500">Campo bloqueado - placa existente</p>
+            )}
+          </div>
         </div>
 
-        {/* Modelo e Tipo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Linha 2: Modelo, Marca, Ano */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="modelo" className="text-sm font-medium">Modelo</Label>
-            <Select value={formData.modelo} onValueChange={(value) => setFormData(prev => ({ ...prev, modelo: value }))}>
-              <SelectTrigger>
+            <Select value={formData.modelo} onValueChange={(value) => setFormData(prev => ({ ...prev, modelo: value }))} disabled={isExistingPlate}>
+              <SelectTrigger className={isExistingPlate ? "opacity-50 cursor-not-allowed" : ""}>
                 <SelectValue placeholder="Selecione o modelo" />
               </SelectTrigger>
               <SelectContent>
@@ -210,6 +380,75 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
                 ))}
               </SelectContent>
             </Select>
+            {isExistingPlate && (
+              <p className="text-xs text-gray-500">Campo bloqueado - placa existente</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="marca" className="text-sm font-medium">Marca</Label>
+            <Input
+              id="marca"
+              type="text"
+              placeholder="Ex: Shineray, Haojue,"
+              value={formData.marca}
+              onChange={(e) => setFormData(prev => ({ ...prev, marca: e.target.value }))}
+              className={`text-sm ${isExistingPlate ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={isExistingPlate}
+            />
+            {isExistingPlate && (
+              <p className="text-xs text-gray-500">Campo bloqueado - placa existente</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="ano" className="text-sm font-medium">Ano</Label>
+            <Input
+              id="ano"
+              type="number"
+              placeholder="Ex: 2025"
+              min="1990"
+              max={new Date().getFullYear() + 1}
+              value={formData.ano}
+              onChange={(e) => setFormData(prev => ({ ...prev, ano: e.target.value }))}
+              className={`text-sm ${isExistingPlate ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={isExistingPlate}
+            />
+            {isExistingPlate && (
+              <p className="text-xs text-gray-500">Campo bloqueado - placa existente</p>
+            )}
+          </div>
+        </div>
+
+        {/* Linha 3: Cor, Quilometragem, Tipo */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="cor" className="text-sm font-medium">Cor</Label>
+            <Input
+              id="cor"
+              type="text"
+              placeholder="Ex: Preta, Vermelha"
+              value={formData.cor}
+              onChange={(e) => setFormData(prev => ({ ...prev, cor: e.target.value }))}
+              className={`text-sm ${isExistingPlate ? "opacity-50 cursor-not-allowed" : ""}`}
+              disabled={isExistingPlate}
+            />
+            {isExistingPlate && (
+              <p className="text-xs text-gray-500">Campo bloqueado - placa existente</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quilometragem" className="text-sm font-medium">Quilometragem</Label>
+            <Input
+              id="quilometragem"
+              type="number"
+              placeholder="Ex: 12000"
+              min="0"
+              value={formData.quilometragem}
+              onChange={(e) => setFormData(prev => ({ ...prev, quilometragem: e.target.value }))}
+              className="text-sm"
+            />
           </div>
 
           <div className="space-y-2">
@@ -227,7 +466,7 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
           </div>
         </div>
 
-        {/* Status e Valor Semanal */}
+        {/* Linha 4: Status, Valor Semanal */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="status" className="text-sm font-medium">Status</Label>
@@ -257,7 +496,7 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
           </div>
         </div>
 
-        {/* Data Última Movimentação e Dias Parado */}
+        {/* Linha 5: Data Última Movimentação, Dias Parado */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="data_ultima_mov" className="text-sm font-medium">Data Última Movimentação</Label>
@@ -285,10 +524,12 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
 
         {/* Franqueado Responsável */}
         <div className="space-y-2">
-          <Label htmlFor="franchisee_id" className="text-sm font-medium">Franqueado Responsável</Label>
-          <Select value={formData.franchisee_id} onValueChange={(value) => setFormData(prev => ({ ...prev, franchisee_id: value }))}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione o franqueado" />
+          <Label htmlFor="franchisee_id" className="text-sm font-medium">
+            Franqueado Responsável <span className="text-red-500">*</span>
+          </Label>
+          <Select value={formData.franchisee_id} onValueChange={(value) => setFormData(prev => ({ ...prev, franchisee_id: value }))} disabled={isExistingPlate}>
+            <SelectTrigger className={isExistingPlate ? "opacity-50 cursor-not-allowed" : ""}>
+              <SelectValue placeholder="Selecione um franqueado" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Nenhum franqueado</SelectItem>
@@ -301,6 +542,9 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
               ))}
             </SelectContent>
           </Select>
+          {isExistingPlate && (
+            <p className="text-xs text-gray-500">Campo bloqueado - placa existente</p>
+          )}
         </div>
 
         {/* CS (Código de Segurança) */}
@@ -309,7 +553,7 @@ function MotorcycleForm({ editingMotorcycle, onSave, onCancel, appUser }: Motorc
           <Input
             id="codigo_cs"
             type="text"
-            placeholder="Identificador do CS (Ex: Nome do Cliente)"
+            placeholder="Identificador (Ex: Nome do Cliente)"
             value={formData.codigo_cs}
             onChange={(e) => setFormData(prev => ({ ...prev, codigo_cs: e.target.value }))}
             className="text-sm"
@@ -430,7 +674,13 @@ export default function MotorcycleManagement() {
       let query = supabase.from('motorcycles').select(`
         id,
         placa,
+        chassi,
+        renavam,
         modelo,
+        marca,
+        ano,
+        cor,
+        quilometragem,
         status,
         tipo,
         valor_semanal,
@@ -548,7 +798,13 @@ export default function MotorcycleManagement() {
           .from('motorcycles')
           .update({
             placa: motorcycleData.placa,
+            chassi: motorcycleData.chassi,
+            renavam: motorcycleData.renavam,
             modelo: motorcycleData.modelo,
+            marca: motorcycleData.marca,
+            ano: motorcycleData.ano,
+            cor: motorcycleData.cor,
+            quilometragem: motorcycleData.quilometragem,
             tipo: motorcycleData.tipo,
             status: motorcycleData.status,
             valor_semanal: motorcycleData.valor_semanal,
@@ -587,7 +843,13 @@ export default function MotorcycleManagement() {
           .from('motorcycles')
           .insert({
             placa: motorcycleData.placa,
+            chassi: motorcycleData.chassi,
+            renavam: motorcycleData.renavam,
             modelo: motorcycleData.modelo,
+            marca: motorcycleData.marca,
+            ano: motorcycleData.ano,
+            cor: motorcycleData.cor,
+            quilometragem: motorcycleData.quilometragem,
             tipo: motorcycleData.tipo || 'Usada',
             status: motorcycleData.status || 'active',
             valor_semanal: motorcycleData.valor_semanal,

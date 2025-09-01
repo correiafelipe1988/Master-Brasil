@@ -33,64 +33,58 @@ const calculateMonthData = (motorcycles: any[], selectedMonth: number, selectedY
     emManutencao: 0
   };
 
-  // Filtrar motos por movimentações no mês/ano selecionado
-  const uniqueMotorcyclesByPlaca: { [placa: string]: any } = {};
+  console.log(`[calculateMonthData] Calculando para ${selectedMonth + 1}/${selectedYear}`);
+  
+  // Para meses passados: contar APENAS movimentações que ocorreram no mês específico
+  // Para o mês atual: mostrar status atual (como já funciona)
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  const isCurrentMonth = selectedMonth === currentMonth && selectedYear === currentYear;
+  
+  console.log(`[calculateMonthData] Data atual: ${currentMonth + 1}/${currentYear}`);
+  console.log(`[calculateMonthData] Mês selecionado: ${selectedMonth + 1}/${selectedYear}`);
+  console.log(`[calculateMonthData] É mês atual? ${isCurrentMonth}`);
+  
+  // SEMPRE usar filtragem histórica por data de movimentação (consistente com os gráficos)
+  console.log('[calculateMonthData] Contando TODOS os registros de movimentação do período selecionado');
   
   motorcycles.forEach(moto => {
-    if (!moto.placa) return;
+    if (!moto.placa || !moto.data_ultima_mov) return;
     
-    // Verificar se a movimentação foi no mês/ano selecionado
-    let isFromSelectedMonth = false;
-    
-    if (moto.data_ultima_mov) {
-      try {
-        const movDate = parseISO(moto.data_ultima_mov);
-        if (isValid(movDate) && 
-            movDate.getMonth() === selectedMonth && 
-            movDate.getFullYear() === selectedYear) {
-          isFromSelectedMonth = true;
+    try {
+      const movDate = parseISO(moto.data_ultima_mov);
+      if (isValid(movDate) && 
+          movDate.getMonth() === selectedMonth && 
+          movDate.getFullYear() === selectedYear) {
+        
+        console.log(`[calculateMonthData] Encontrada movimentação: ${moto.placa} - ${moto.status} em ${moto.data_ultima_mov}`);
+        
+        const status = moto.status || 'active';
+        switch (status) {
+          case 'alugada':
+            monthData.motosAlugadas++;
+            break;
+          case 'relocada':
+            monthData.motosRelocadas++;
+            break;
+          case 'active':
+            monthData.motosDisponiveis++;
+            break;
+          case 'recolhida':
+            monthData.motosRecuperadas++;
+            break;
+          case 'manutencao':
+            monthData.emManutencao++;
+            break;
         }
-      } catch (e) {
-        console.warn('Erro ao processar data:', moto.data_ultima_mov);
       }
-    }
-
-    // Se não há movimentação no mês selecionado, usar status atual apenas para o mês atual
-    if (!isFromSelectedMonth && 
-        (selectedMonth !== new Date().getMonth() || selectedYear !== new Date().getFullYear())) {
-      return;
-    }
-
-    // Pegar a moto mais recente por placa
-    const existingMoto = uniqueMotorcyclesByPlaca[moto.placa];
-    if (!existingMoto || (moto.data_ultima_mov && 
-        (!existingMoto.data_ultima_mov || new Date(moto.data_ultima_mov) > new Date(existingMoto.data_ultima_mov)))) {
-      uniqueMotorcyclesByPlaca[moto.placa] = moto;
+    } catch (e) {
+      console.warn('Erro ao processar data:', moto.data_ultima_mov);
     }
   });
 
-  // Contar por status
-  Object.values(uniqueMotorcyclesByPlaca).forEach(moto => {
-    const status = moto.status || 'active';
-    switch (status) {
-      case 'alugada':
-        monthData.motosAlugadas++;
-        break;
-      case 'relocada':
-        monthData.motosRelocadas++;
-        break;
-      case 'active':
-        monthData.motosDisponiveis++;
-        break;
-      case 'recolhida':
-        monthData.motosRecuperadas++;
-        break;
-      case 'manutencao':
-        monthData.emManutencao++;
-        break;
-    }
-  });
-
+  console.log('[calculateMonthData] Resultado:', monthData);
   return monthData;
 };
 
@@ -857,8 +851,10 @@ export default function Dashboard() {
             <MonthlyRentalsChart data={monthlyRentals} meta={180} />
           </CardContent>
         </Card>
+      </div>
 
-        {/* Gráfico de Análise Diária */}
+      {/* Gráfico de Análise Diária */}
+      <div className="mt-8">
         <DailyRentalsChart data={dashboardData?.dailyRentals || []} />
       </div>
 
