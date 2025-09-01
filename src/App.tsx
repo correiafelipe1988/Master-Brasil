@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { DashboardProvider } from "@/contexts/DashboardContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "@/components/Layout";
+import FaviconGenerator from "@/components/FaviconGenerator";
 
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
@@ -39,6 +40,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <FaviconGenerator />
       <Toaster />
       <Sonner />
       <BrowserRouter>
