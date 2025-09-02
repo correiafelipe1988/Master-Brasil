@@ -32,6 +32,27 @@ export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
     return <Navigate to="/onboarding" replace />;
   }
 
+  // Verificar se o usuário está bloqueado
+  if ((appUser as any).status === 'blocked') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="text-red-500 text-6xl mb-4">🚫</div>
+          <h1 className="text-2xl font-bold text-red-600 mb-2">Acesso Bloqueado</h1>
+          <p className="text-muted-foreground mb-4">
+            Sua conta foi bloqueada pelo administrador. Entre em contato com o suporte para mais informações.
+          </p>
+          <button
+            onClick={() => window.location.href = '/auth'}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+          >
+            Voltar ao Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Verifica role se necessário
   if (requireRole) {
     const allowedRoles = Array.isArray(requireRole) ? requireRole : [requireRole];

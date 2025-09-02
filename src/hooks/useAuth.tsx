@@ -8,6 +8,7 @@ interface AppUser {
   role: 'admin' | 'master_br' | 'regional' | 'franchisee';
   city_id: string | null;
   city_name?: string;
+  status: 'active' | 'blocked' | 'inactive';
 }
 
 interface AuthContextType {
@@ -34,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase
         .from('app_users')
         .select(`
-          id, email, role, city_id,
+          *,
           cities:city_id (name)
         `)
         .eq('id', userId)
@@ -46,16 +47,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data) {
+        // Verificar se o usuário está bloqueado
+        if ((data as any).status === 'blocked') {
+          console.log('Usuário bloqueado, fazendo logout...');
+          await signOut();
+          return;
+        }
+
         const appUserData = {
           id: data.id,
           email: data.email,
           role: data.role as 'admin' | 'master_br' | 'regional' | 'franchisee',
           city_id: data.city_id,
-          city_name: (data.cities as any)?.name
+          city_name: (data.cities as any)?.name,
+          status: (data as any).status as 'active' | 'blocked' | 'inactive'
         };
-        
+
         setAppUser(appUserData);
-        
+
         // Cache user data in localStorage for persistence
         try {
           localStorage.setItem('app_user', JSON.stringify(appUserData));
@@ -74,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user) {
           // Defer app user fetch to avoid auth state change deadlock
           setTimeout(() => {
@@ -83,10 +92,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setAppUser(null);
         }
-        
+
         setLoading(false);
       }
     );
+
+    // Verificar status do usuário periodicamente (a cada 30 segundos)
+    const statusCheckInterval = setInterval(() => {
+      if (user && appUser) {
+        fetchAppUser(user.id);
+      }
+    }, 30000);
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session }, error }) => {
@@ -121,7 +137,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(statusCheckInterval);
+    };
   }, []);
 
   const signUp = async (email: string, password: string) => {

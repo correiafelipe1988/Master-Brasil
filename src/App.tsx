@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import TestCities from "./pages/TestCities";
 import TestAuth from "./pages/TestAuth";
+import TestBlockedUser from "./pages/TestBlockedUser";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import FranchiseeManagement from "./pages/FranchiseeManagement";
 import FranchiseeDashboard from "./pages/FranchiseeDashboard";
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/test-cities" element={<TestCities />} />
             <Route path="/test-auth" element={<TestAuth />} />
+            <Route path="/test-blocked-user" element={<TestBlockedUser />} />
             
             {/* Protected routes */}
             <Route path="/" element={
