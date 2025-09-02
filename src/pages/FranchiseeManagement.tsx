@@ -19,6 +19,11 @@ interface Franchisee {
   cnpj: string;
   company_name: string;
   fantasy_name: string;
+  cpf?: string;
+  endereco?: string;
+  email?: string;
+  whatsapp_01?: string;
+  whatsapp_02?: string;
   city_id: string;
   status: string;
   cities?: {
@@ -501,6 +506,11 @@ export default function FranchiseeManagement() {
       cnpj: (formData.get('cnpj') as string).replace(/\D/g, ''),
       company_name: formData.get('company_name') as string,
       fantasy_name: formData.get('fantasy_name') as string,
+      cpf: (formData.get('cpf') as string)?.replace(/\D/g, '') || null,
+      endereco: formData.get('endereco') as string || null,
+      email: formData.get('email') as string || null,
+      whatsapp_01: (formData.get('whatsapp_01') as string)?.replace(/\D/g, '') || null,
+      whatsapp_02: (formData.get('whatsapp_02') as string)?.replace(/\D/g, '') || null,
       city_id: formData.get('city_id') as string,
     };
 
@@ -739,11 +749,12 @@ export default function FranchiseeManagement() {
                 <DialogTrigger asChild>
                   <Button>Cadastrar Franqueado</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Novo Franqueado</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Linha 1: CNPJ */}
                   <div>
                     <Label htmlFor="cnpj">CNPJ</Label>
                     <Input
@@ -754,6 +765,8 @@ export default function FranchiseeManagement() {
                       required
                     />
                   </div>
+
+                  {/* Linha 2: Razão Social */}
                   <div>
                     <Label htmlFor="company_name">Razão Social</Label>
                     <Input
@@ -763,6 +776,8 @@ export default function FranchiseeManagement() {
                       required
                     />
                   </div>
+
+                  {/* Linha 3: Nome Fantasia */}
                   <div>
                     <Label htmlFor="fantasy_name">Nome Fantasia</Label>
                     <Input
@@ -771,6 +786,62 @@ export default function FranchiseeManagement() {
                       placeholder="Nome fantasia (opcional)"
                     />
                   </div>
+
+                  {/* Linha 4: CPF */}
+                  <div>
+                    <Label htmlFor="cpf">CPF</Label>
+                    <Input
+                      id="cpf"
+                      name="cpf"
+                      placeholder="032.018.675-00"
+                      maxLength={14}
+                    />
+                  </div>
+
+                  {/* Linha 5: Endereço */}
+                  <div>
+                    <Label htmlFor="endereco">Endereço</Label>
+                    <Input
+                      id="endereco"
+                      name="endereco"
+                      placeholder="SALVADOR, BA. Bairro PIATÃ, rua RUA DOS AZULÕES, N° 0"
+                    />
+                  </div>
+
+                  {/* Linha 6: Email */}
+                  <div>
+                    <Label htmlFor="email">email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="williaquison@gmail.com"
+                    />
+                  </div>
+
+                  {/* Linha 7: WhatsApp 01 */}
+                  <div>
+                    <Label htmlFor="whatsapp_01">Whatsapp 01</Label>
+                    <Input
+                      id="whatsapp_01"
+                      name="whatsapp_01"
+                      placeholder="(71) 9 8328-293"
+                      maxLength={16}
+                    />
+                  </div>
+
+                  {/* Linha 8: WhatsApp 02 */}
+                  <div>
+                    <Label htmlFor="whatsapp_02">Whatsapp 02</Label>
+                    <Input
+                      id="whatsapp_02"
+                      name="whatsapp_02"
+                      placeholder="(71) 9 8328-293"
+                      maxLength={16}
+                    />
+                  </div>
+
+                  {/* Linha 9: Cidade */}
                   <div>
                     <Label htmlFor="city_id">Cidade</Label>
                     <Select name="city_id" required>
@@ -786,6 +857,7 @@ export default function FranchiseeManagement() {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <Button type="submit" className="w-full">
                     Cadastrar
                   </Button>
