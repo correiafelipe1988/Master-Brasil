@@ -9,9 +9,10 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Grid3x3, TableIcon, Car, Settings, AlertTriangle, CheckCircle, Shield, Wifi, FileText, Bike, BarChart3, Wrench, Clock, XCircle, DollarSign, MapPin } from 'lucide-react';
+import { Users, Grid3x3, TableIcon, Car, Settings, AlertTriangle, CheckCircle, Shield, Wifi, FileText, Bike, BarChart3, Wrench, Clock, XCircle, DollarSign, MapPin, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Franchisee {
@@ -97,6 +98,8 @@ export default function FranchiseeManagement() {
   const [cities, setCities] = useState<City[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingFranchisee, setEditingFranchisee] = useState<Franchisee | null>(null);
+  const [deletingFranchisee, setDeletingFranchisee] = useState<Franchisee | null>(null);
   const { appUser } = useAuth();
 
   // Debug: Log para verificar se a página está sendo carregada
@@ -515,18 +518,35 @@ export default function FranchiseeManagement() {
     };
 
     try {
-      const { error } = await (supabase as any)
-        .from('franchisees')
-        .insert(franchiseeData);
+      if (editingFranchisee) {
+        // Atualizar franqueado existente
+        const { error } = await supabase
+          .from('franchisees')
+          .update(franchiseeData)
+          .eq('id', editingFranchisee.id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Sucesso!",
-        description: "Franqueado cadastrado com sucesso."
-      });
+        toast({
+          title: "Sucesso!",
+          description: "Franqueado atualizado com sucesso."
+        });
+      } else {
+        // Criar novo franqueado
+        const { error } = await (supabase as any)
+          .from('franchisees')
+          .insert(franchiseeData);
+
+        if (error) throw error;
+
+        toast({
+          title: "Sucesso!",
+          description: "Franqueado cadastrado com sucesso."
+        });
+      }
 
       setIsDialogOpen(false);
+      setEditingFranchisee(null);
       fetchFranchisees();
       (e.target as HTMLFormElement).reset();
     } catch (error: any) {
@@ -538,10 +558,47 @@ export default function FranchiseeManagement() {
     }
   };
 
+  const handleEditFranchisee = (franchisee: Franchisee) => {
+    setEditingFranchisee(franchisee);
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingFranchisee(null);
+    }
+  };
+
+  const handleDeleteFranchisee = async (franchiseeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('franchisees')
+        .delete()
+        .eq('id', franchiseeId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso!",
+        description: "Franqueado excluído com sucesso."
+      });
+
+      fetchFranchisees();
+      setDeletingFranchisee(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error.message || "Erro ao excluir franqueado."
+      });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
-        return <Badge variant="default">Ativo</Badge>;
+        return <Badge className="bg-green-500 hover:bg-green-600 text-white">Ativo</Badge>;
       case 'inactive':
         return <Badge variant="secondary">Inativo</Badge>;
       case 'suspended':
@@ -672,24 +729,18 @@ export default function FranchiseeManagement() {
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-6 w-6" />
-                {appUser?.role === 'franchisee' ? 'Minha Frota' : 'Franqueados - Análise por franqueado'}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {appUser?.role === 'franchisee'
-                  ? 'Visualize e acompanhe o status da sua frota de motocicletas'
-                  : 'Cadastre e analise a performance dos franqueados da sua região'
-                }
-              </p>
-            </div>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className="w-14 h-14 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#2D3E95' }}>
+            <Users className="h-7 w-7 text-white" />
           </div>
-        </CardHeader>
-      </Card>
+          <div>
+            <h1 className="text-3xl font-bold">
+              {appUser?.role === 'franchisee' ? 'Minha Frota' : 'Franqueados'}
+            </h1>
+          </div>
+        </div>
+      </div>
 
       <Tabs defaultValue={appUser?.role === 'franchisee' ? 'frota-tabela' : 'cadastro'} className="w-full">
         <TabsList className={`grid w-full ${
@@ -740,18 +791,15 @@ export default function FranchiseeManagement() {
           <CardHeader>
             <div className="flex justify-between items-center">
               <div>
-                <CardTitle>Gestão de Franqueados</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Cadastre e gerencie franqueados da sua região
-                </p>
+                <h1 className="text-3xl font-bold">Gestão de Franqueados</h1>
               </div>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
                 <DialogTrigger asChild>
-                  <Button>Cadastrar Franqueado</Button>
+                  <Button onClick={() => setIsDialogOpen(true)} className="bg-[#2D3E95] hover:bg-[#1d2d7a] text-white">Cadastrar Franqueado</Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Novo Franqueado</DialogTitle>
+                  <DialogTitle>{editingFranchisee ? 'Editar Franqueado' : 'Novo Franqueado'}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Linha 1: CNPJ */}
@@ -762,6 +810,7 @@ export default function FranchiseeManagement() {
                       name="cnpj"
                       placeholder="00.000.000/0001-00"
                       maxLength={18}
+                      defaultValue={editingFranchisee ? formatCNPJ(editingFranchisee.cnpj) : ''}
                       required
                     />
                   </div>
@@ -773,6 +822,7 @@ export default function FranchiseeManagement() {
                       id="company_name"
                       name="company_name"
                       placeholder="Nome da empresa"
+                      defaultValue={editingFranchisee ? editingFranchisee.company_name : ''}
                       required
                     />
                   </div>
@@ -784,6 +834,7 @@ export default function FranchiseeManagement() {
                       id="fantasy_name"
                       name="fantasy_name"
                       placeholder="Nome fantasia (opcional)"
+                      defaultValue={editingFranchisee ? editingFranchisee.fantasy_name || '' : ''}
                     />
                   </div>
 
@@ -793,8 +844,9 @@ export default function FranchiseeManagement() {
                     <Input
                       id="cpf"
                       name="cpf"
-                      placeholder="032.018.675-00"
+                      placeholder=""
                       maxLength={14}
+                      defaultValue={editingFranchisee ? editingFranchisee.cpf || '' : ''}
                     />
                   </div>
 
@@ -804,7 +856,8 @@ export default function FranchiseeManagement() {
                     <Input
                       id="endereco"
                       name="endereco"
-                      placeholder="SALVADOR, BA. Bairro PIATÃ, rua RUA DOS AZULÕES, N° 0"
+                      placeholder=""
+                      defaultValue={editingFranchisee ? editingFranchisee.endereco || '' : ''}
                     />
                   </div>
 
@@ -815,7 +868,8 @@ export default function FranchiseeManagement() {
                       id="email"
                       name="email"
                       type="email"
-                      placeholder="williaquison@gmail.com"
+                      placeholder=""
+                      defaultValue={editingFranchisee ? editingFranchisee.email || '' : ''}
                     />
                   </div>
 
@@ -825,8 +879,9 @@ export default function FranchiseeManagement() {
                     <Input
                       id="whatsapp_01"
                       name="whatsapp_01"
-                      placeholder="(71) 9 8328-293"
+                      placeholder=""
                       maxLength={16}
+                      defaultValue={editingFranchisee ? editingFranchisee.whatsapp_01 || '' : ''}
                     />
                   </div>
 
@@ -836,26 +891,41 @@ export default function FranchiseeManagement() {
                     <Input
                       id="whatsapp_02"
                       name="whatsapp_02"
-                      placeholder="(71) 9 8328-293"
+                      placeholder=""
                       maxLength={16}
+                      defaultValue={editingFranchisee ? editingFranchisee.whatsapp_02 || '' : ''}
                     />
                   </div>
 
                   {/* Linha 9: Cidade */}
                   <div>
                     <Label htmlFor="city_id">Cidade</Label>
-                    <Select name="city_id" required>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione a cidade" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {cities.map((city) => (
-                          <SelectItem key={city.id} value={city.id}>
-                            {city.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {appUser?.role === 'regional' ? (
+                      // Para usuário regional, mostrar cidade fixa (não editável)
+                      <div className="flex items-center h-10 px-3 py-2 border border-input bg-background rounded-md">
+                        <span className="text-sm text-muted-foreground">
+                          {cities.find(city => city.id === appUser.city_id)?.name || 'Cidade não encontrada'}
+                        </span>
+                      </div>
+                    ) : (
+                      // Para admin/master_br, permitir seleção
+                      <Select name="city_id" required defaultValue={editingFranchisee ? editingFranchisee.city_id : undefined}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a cidade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cities.map((city) => (
+                            <SelectItem key={city.id} value={city.id}>
+                              {city.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {/* Campo hidden para enviar city_id quando regional */}
+                    {appUser?.role === 'regional' && (
+                      <input type="hidden" name="city_id" value={appUser.city_id} />
+                    )}
                   </div>
 
                   <Button type="submit" className="w-full">
@@ -883,6 +953,7 @@ export default function FranchiseeManagement() {
                   <TableHead>Status</TableHead>
                   <TableHead>Usuário Vinculado</TableHead>
                   <TableHead>Cadastrado em</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -913,6 +984,26 @@ export default function FranchiseeManagement() {
                     <TableCell>
                       {new Date(franchisee.created_at).toLocaleDateString('pt-BR')}
                     </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditFranchisee(franchisee)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeletingFranchisee(franchisee)}
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -935,6 +1026,29 @@ export default function FranchiseeManagement() {
           </div>
         </CardContent>
         </Card>
+
+        {/* AlertDialog para confirmação de exclusão */}
+        <AlertDialog open={!!deletingFranchisee} onOpenChange={(open) => !open && setDeletingFranchisee(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir o franqueado {deletingFranchisee?.company_name}? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeletingFranchisee(null)}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => deletingFranchisee && handleDeleteFranchisee(deletingFranchisee.id)}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }

@@ -370,55 +370,71 @@ export default function ClientManagement() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-600">Gestão de clientes</p>
+        <div className="flex items-center gap-3">
+          <div className="w-14 h-14 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#2D3E95' }}>
+            <Users className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Clientes</h1>
+          </div>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
+        <Button onClick={() => setIsCreateModalOpen(true)} className="bg-[#2D3E95] hover:bg-[#1d2d7a] text-white">
           <Plus className="w-4 h-4 mr-2" />
           Novo Cliente
         </Button>
       </div>
 
       {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
+      <div className="grid gap-4 md:grid-cols-4 mt-6">
+        <Card className="border-l-4 border-l-blue-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-muted-foreground font-medium">Total de Clientes</p>
+              <p className="text-2xl font-bold text-blue-500">{stats.total}</p>
+              <p className="text-xs text-muted-foreground">registrados</p>
+            </div>
+            <div className="p-3 rounded-lg bg-blue-500">
+              <Users className="h-6 w-6 text-white" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
-            <UserCheck className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+        <Card className="border-l-4 border-l-green-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-muted-foreground font-medium">Clientes Ativos</p>
+              <p className="text-2xl font-bold text-green-500">{stats.active}</p>
+              <p className="text-xs text-muted-foreground">ativos</p>
+            </div>
+            <div className="p-3 rounded-lg bg-green-500">
+              <UserCheck className="h-6 w-6 text-white" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes Inativos</CardTitle>
-            <UserX className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.inactive}</div>
+        <Card className="border-l-4 border-l-red-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-muted-foreground font-medium">Clientes Inativos</p>
+              <p className="text-2xl font-bold text-red-500">{stats.inactive}</p>
+              <p className="text-xs text-muted-foreground">inativos</p>
+            </div>
+            <div className="p-3 rounded-lg bg-red-500">
+              <UserX className="h-6 w-6 text-white" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes Bloqueados</CardTitle>
-            <UserMinus className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.blocked}</div>
+        <Card className="border-l-4 border-l-yellow-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-muted-foreground font-medium">Clientes Bloqueados</p>
+              <p className="text-2xl font-bold text-yellow-500">{stats.blocked}</p>
+              <p className="text-xs text-muted-foreground">bloqueados</p>
+            </div>
+            <div className="p-3 rounded-lg bg-yellow-500">
+              <UserMinus className="h-6 w-6 text-white" />
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -592,6 +592,14 @@ export default function Locacoes() {
 
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.active;
     
+    if (status === 'active') {
+      return (
+        <Badge className="bg-green-500 hover:bg-green-600 text-white">
+          {config.label}
+        </Badge>
+      );
+    }
+    
     return (
       <Badge variant={config.variant}>
         {config.label}
@@ -653,18 +661,20 @@ export default function Locacoes() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Locações</h1>
-          <p className="text-muted-foreground">
-            Gerencie todas as locações de motocicletas
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-14 h-14 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#2D3E95' }}>
+            <Car className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Locações</h1>
+          </div>
         </div>
         
         {/* Franqueados não podem criar novas locações */}
         {appUser?.role !== 'franchisee' && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="flex items-center gap-2">
+              <Button className="flex items-center gap-2 bg-[#2D3E95] hover:bg-[#1d2d7a] text-white">
                 <Plus className="h-4 w-4" />
                 Nova Locação
               </Button>
@@ -934,47 +944,41 @@ export default function Locacoes() {
       </div>
 
       {/* Cards de Métricas */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Locações
-            </CardTitle>
-            <Car className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalRentals}</div>
-            <p className="text-xs text-muted-foreground">
-              Todas as locações registradas
-            </p>
+      <div className="grid gap-4 md:grid-cols-3 mt-6">
+        <Card className="border-l-4 border-l-blue-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-muted-foreground font-medium">Total de Locações</p>
+              <p className="text-2xl font-bold text-blue-500">{totalRentals}</p>
+              <p className="text-xs text-muted-foreground">registradas</p>
+            </div>
+            <div className="p-3 rounded-lg bg-blue-500">
+              <Car className="h-6 w-6 text-white" />
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Locações Ativas
-            </CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{activeRentals}</div>
-            <p className="text-xs text-muted-foreground">
-              Em andamento atualmente
-            </p>
+        <Card className="border-l-4 border-l-green-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-muted-foreground font-medium">Locações Ativas</p>
+              <p className="text-2xl font-bold text-green-500">{activeRentals}</p>
+              <p className="text-xs text-muted-foreground">em andamento</p>
+            </div>
+            <div className="p-3 rounded-lg bg-green-500">
+              <Clock className="h-6 w-6 text-white" />
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Locações Finalizadas
-            </CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{completedRentals}</div>
-            <p className="text-xs text-muted-foreground">
-              Concluídas com sucesso
-            </p>
+        <Card className="border-l-4 border-l-orange-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-muted-foreground font-medium">Locações Finalizadas</p>
+              <p className="text-2xl font-bold text-orange-500">{completedRentals}</p>
+              <p className="text-xs text-muted-foreground">concluídas</p>
+            </div>
+            <div className="p-3 rounded-lg bg-orange-500">
+              <CheckCircle className="h-6 w-6 text-white" />
+            </div>
           </CardContent>
         </Card>
       </div>

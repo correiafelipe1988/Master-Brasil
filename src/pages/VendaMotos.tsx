@@ -387,24 +387,16 @@ export default function VendaMotos() {
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="h-6 w-6 text-green-600" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl font-bold text-green-800">Venda de Motos</CardTitle>
-              <p className="text-muted-foreground">
-                {appUser?.role === 'admin' || appUser?.role === 'master_br' 
-                  ? 'Analise vendas, receitas e performance de todas as regiões'
-                  : 'Analise vendas, receitas e performance da sua região'
-                }
-              </p>
-            </div>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className="w-14 h-14 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#2D3E95' }}>
+            <DollarSign className="h-7 w-7 text-white" />
           </div>
-        </CardHeader>
-      </Card>
+          <div>
+            <h1 className="text-3xl font-bold">Venda de Motos</h1>
+          </div>
+        </div>
+      </div>
 
       {/* KPI Cards */}
       <VendasKpiCards kpis={kpis} />
@@ -458,67 +450,59 @@ export default function VendaMotos() {
 // Componente KPI Cards
 function VendasKpiCards({ kpis }: { kpis: VendasKPI }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card className="border-l-4 border-l-green-500">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total de Vendas</p>
-              <p className="text-2xl font-bold text-green-600">{kpis.totalVendas}</p>
-              <p className="text-xs text-muted-foreground">unidades vendidas</p>
-            </div>
-            <div className="p-2 bg-green-100 rounded-lg">
-              <TrendingUp className="h-6 w-6 text-green-600" />
-            </div>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6">
+      <Card className="border-l-4 border-l-green-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <CardContent className="p-4 flex justify-between items-center">
+          <div>
+            <p className="text-sm text-muted-foreground font-medium">Total de Vendas</p>
+            <p className="text-2xl font-bold text-green-500">{kpis.totalVendas}</p>
+            <p className="text-xs text-muted-foreground">unidades</p>
+          </div>
+          <div className="p-3 rounded-lg bg-green-500">
+            <TrendingUp className="h-6 w-6 text-white" />
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-l-4 border-l-blue-500">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Receita Total</p>
-              <p className="text-2xl font-bold text-blue-600">
-                R$ {kpis.receitaTotal.toLocaleString('pt-BR')}
-              </p>
-              <p className="text-xs text-muted-foreground">valor bruto</p>
-            </div>
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <DollarSign className="h-6 w-6 text-blue-600" />
-            </div>
+      <Card className="border-l-4 border-l-blue-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <CardContent className="p-4 flex justify-between items-center">
+          <div>
+            <p className="text-sm text-muted-foreground font-medium">Receita Total</p>
+            <p className="text-2xl font-bold text-blue-500">
+              R$ {kpis.receitaTotal.toLocaleString('pt-BR')}
+            </p>
+            <p className="text-xs text-muted-foreground">valor bruto</p>
+          </div>
+          <div className="p-3 rounded-lg bg-blue-500">
+            <DollarSign className="h-6 w-6 text-white" />
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-l-4 border-l-purple-500">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Ticket Médio</p>
-              <p className="text-2xl font-bold text-purple-600">
-                R$ {kpis.ticketMedio.toLocaleString('pt-BR')}
-              </p>
-              <p className="text-xs text-muted-foreground">por venda</p>
-            </div>
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <BarChart3 className="h-6 w-6 text-purple-600" />
-            </div>
+      <Card className="border-l-4 border-l-purple-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <CardContent className="p-4 flex justify-between items-center">
+          <div>
+            <p className="text-sm text-muted-foreground font-medium">Ticket Médio</p>
+            <p className="text-2xl font-bold text-purple-500">
+              R$ {kpis.ticketMedio.toLocaleString('pt-BR')}
+            </p>
+            <p className="text-xs text-muted-foreground">por venda</p>
+          </div>
+          <div className="p-3 rounded-lg bg-purple-500">
+            <BarChart3 className="h-6 w-6 text-white" />
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-l-4 border-l-orange-500">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Crescimento</p>
-              <p className="text-2xl font-bold text-orange-600">+{kpis.crescimentoMensal}%</p>
-              <p className="text-xs text-muted-foreground">vs mês anterior</p>
-            </div>
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <TrendingUp className="h-6 w-6 text-orange-600" />
-            </div>
+      <Card className="border-l-4 border-l-orange-500 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <CardContent className="p-4 flex justify-between items-center">
+          <div>
+            <p className="text-sm text-muted-foreground font-medium">Crescimento</p>
+            <p className="text-2xl font-bold text-orange-500">+{kpis.crescimentoMensal}%</p>
+            <p className="text-xs text-muted-foreground">mensal</p>
+          </div>
+          <div className="p-3 rounded-lg bg-orange-500">
+            <TrendingUp className="h-6 w-6 text-white" />
           </div>
         </CardContent>
       </Card>
@@ -963,7 +947,7 @@ function VendaMotosTable({
             
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="bg-[#2D3E95] hover:bg-[#1d2d7a] text-white">
                   <Plus className="h-4 w-4 mr-2" />
                   Adicionar Venda
                 </Button>

@@ -1048,13 +1048,13 @@ export default function MotorcycleManagement() {
 
   const pageActions = (
     <div className="flex gap-2">
-      <Button variant="outline" onClick={handleExportCSV}>
+      <Button variant="outline" onClick={handleExportCSV} className="bg-green-500 hover:bg-green-600 text-white border-green-500 hover:border-green-600">
         <Download className="mr-2 h-4 w-4" />
         Exportar CSV
       </Button>
       {/* Franqueados não podem adicionar motos */}
       {appUser?.role !== 'franchisee' && (
-        <Button onClick={handleOpenAddModal}>
+        <Button onClick={handleOpenAddModal} className="bg-[#2D3E95] hover:bg-[#1d2d7a] text-white">
           <PlusCircle className="mr-2 h-4 w-4" />
           Nova Moto
         </Button>
@@ -1085,14 +1085,11 @@ export default function MotorcycleManagement() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-            <Bike className="h-5 w-5 text-white" />
+          <div className="w-14 h-14 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#2D3E95' }}>
+            <Bike className="h-7 w-7 text-white" />
           </div>
           <div>
             <h1 className="text-3xl font-bold">Gestão de Motos</h1>
-            <p className="text-muted-foreground">
-              Controle completo da frota - {filteredMotorcycles.length} motocicletas
-            </p>
           </div>
         </div>
         {pageActions}

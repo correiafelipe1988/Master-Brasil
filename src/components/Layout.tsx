@@ -106,7 +106,7 @@ export function Layout({ children }: LayoutProps) {
   const Navigation = () => (
     <nav className="space-y-1">
       <div className="px-3 py-2 mb-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#99A1CB' }}>
+        <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.8)' }}>
           Navegação
         </h3>
       </div>
@@ -120,33 +120,33 @@ export function Layout({ children }: LayoutProps) {
             to={item.href}
             className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
             style={{
-              backgroundColor: isActive ? '#3649A5' : 'transparent',
-              color: isActive ? 'white' : '#99A1CB',
-              borderLeft: isActive ? '3px solid #596AC5' : '3px solid transparent'
+              backgroundColor: isActive ? '#1d4ed8' : 'transparent',
+              color: isActive ? 'white' : 'white',
+              borderLeft: isActive ? '3px solid #3b82f6' : '3px solid transparent'
             }}
             onMouseEnter={(e) => {
               if (!isActive) {
-                e.currentTarget.style.backgroundColor = '#5463AA';
+                e.currentTarget.style.backgroundColor = '#3b82f6';
                 e.currentTarget.style.color = 'white';
               }
             }}
             onMouseLeave={(e) => {
               if (!isActive) {
                 e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = '#99A1CB';
+                e.currentTarget.style.color = 'white';
               }
             }}
             onClick={() => setIsOpen(false)}
           >
             <Icon 
               className="h-5 w-5 flex-shrink-0" 
-              style={{ color: isActive ? 'white' : '#7984B8' }}
+              style={{ color: 'white' }}
             />
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium truncate">{item.label}</div>
               <div 
                 className="text-xs truncate" 
-                style={{ color: isActive ? '#E0E7FF' : '#99A1CB' }}
+                style={{ color: isActive ? '#E0E7FF' : 'rgba(255,255,255,0.7)' }}
               >
                 {item.subtitle}
               </div>
@@ -159,7 +159,7 @@ export function Layout({ children }: LayoutProps) {
         <>
           <div className="h-px my-6" style={{ backgroundColor: '#5463AA' }} />
           <div className="px-3 py-2 mb-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#99A1CB' }}>
+            <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.8)' }}>
               Administração
             </h3>
           </div>
@@ -172,13 +172,13 @@ export function Layout({ children }: LayoutProps) {
                 to={item.href}
                 className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
                 style={{
-                  backgroundColor: isActive ? '#3649A5' : 'transparent',
-                  color: isActive ? 'white' : '#99A1CB',
-                  borderLeft: isActive ? '3px solid #596AC5' : '3px solid transparent'
+                  backgroundColor: isActive ? '#1d4ed8' : 'transparent',
+                  color: isActive ? 'white' : 'white',
+                  borderLeft: isActive ? '3px solid #3b82f6' : '3px solid transparent'
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.backgroundColor = '#5463AA';
+                    e.currentTarget.style.backgroundColor = '#3b82f6';
                     e.currentTarget.style.color = 'white';
                   }
                 }}
@@ -192,7 +192,7 @@ export function Layout({ children }: LayoutProps) {
               >
                 <Icon 
                   className="h-5 w-5 flex-shrink-0" 
-                  style={{ color: isActive ? 'white' : '#7984B8' }}
+                  style={{ color: 'white' }}
                 />
                 <div className="text-sm font-medium">{item.label}</div>
               </Link>
@@ -213,7 +213,7 @@ export function Layout({ children }: LayoutProps) {
               <Menu className="h-4 w-4" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-80 p-0 overflow-hidden" style={{ backgroundColor: '#2C3D94' }}>
+          <SheetContent side="left" className="w-80 p-0 overflow-hidden" style={{ backgroundColor: '#2D3E95' }}>
             <div className="h-full flex flex-col">
               <div className="p-6 flex-shrink-0">
                 <div className="flex items-center gap-3 mb-8">
@@ -231,7 +231,7 @@ export function Layout({ children }: LayoutProps) {
                         : 'Master Salvador'
                     }
                   </h2>
-                  <p className="text-xs" style={{ color: '#99A1CB' }}>Gestão de Locação</p>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>Gestão de Locação</p>
                 </div>
                 </div>
               </div>
@@ -246,7 +246,7 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Sidebar - Desktop - Full Height with Independent Scroll */}
-      <aside className="hidden md:flex w-64 text-white h-screen flex-shrink-0" style={{ backgroundColor: '#2C3D94' }}>
+      <aside className="hidden md:flex w-64 text-white h-screen flex-shrink-0" style={{ backgroundColor: '#2D3E95' }}>
         <div className="flex flex-col w-full h-full">
           {/* Header - Fixed */}
           <div className="p-6 flex-shrink-0">
@@ -265,7 +265,7 @@ export function Layout({ children }: LayoutProps) {
                       : 'Master Salvador'
                   }
                 </h2>
-                <p className="text-xs" style={{ color: '#99A1CB' }}>Gestão de Locação</p>
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>Gestão de Locação</p>
               </div>
             </div>
           </div>
@@ -276,7 +276,7 @@ export function Layout({ children }: LayoutProps) {
 
             {/* Status Cards */}
             <div className="mt-6 mb-6">
-              <h3 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#99A1CB' }}>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.8)' }}>
                 Status Rápido
               </h3>
               <div className="space-y-3">
@@ -284,8 +284,8 @@ export function Layout({ children }: LayoutProps) {
                 <div className="bg-white rounded-lg p-3 text-gray-800">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                        <Box className="h-4 w-4 text-gray-600" />
+                      <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
+                        <Box className="h-4 w-4 text-white" />
                       </div>
                       <div>
                         <p className="font-semibold text-sm">Total de Motos</p>
@@ -318,8 +318,8 @@ export function Layout({ children }: LayoutProps) {
                 <div className="bg-blue-50 rounded-lg p-3 text-blue-800">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                        <Bike className="h-4 w-4 text-blue-600" />
+                      <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
+                        <Bike className="h-4 w-4 text-white" />
                       </div>
                       <div>
                         <p className="font-semibold text-sm">Alugadas</p>
@@ -334,8 +334,8 @@ export function Layout({ children }: LayoutProps) {
                 <div className="bg-purple-50 rounded-lg p-3 text-purple-800">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-                        <Wrench className="h-4 w-4 text-purple-600" />
+                      <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
+                        <Wrench className="h-4 w-4 text-white" />
                       </div>
                       <div>
                         <p className="font-semibold text-sm">Manutenção</p>
@@ -350,8 +350,8 @@ export function Layout({ children }: LayoutProps) {
                 <div className="bg-orange-50 rounded-lg p-3 text-orange-800">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                        <AlertTriangle className="h-4 w-4 text-orange-600" />
+                      <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
+                        <AlertTriangle className="h-4 w-4 text-white" />
                       </div>
                       <div>
                         <p className="font-semibold text-sm">Recolhidas</p>
@@ -374,7 +374,7 @@ export function Layout({ children }: LayoutProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">{appUser?.email}</p>
-                  <p className="text-xs truncate" style={{ color: '#99A1CB' }}>
+                  <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>
                     {appUser?.role === 'admin' ? 'Administrador' : 
                      appUser?.role === 'master_br' ? 'Master Brasil' :
                      appUser?.role === 'regional' ? 'Regional' :
