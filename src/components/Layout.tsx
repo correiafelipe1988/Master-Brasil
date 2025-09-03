@@ -18,6 +18,7 @@ import {
   BarChart2,
   Box,
   Wrench,
+  FileText,
   DollarSign,
   Users,
   Calendar
@@ -101,6 +102,7 @@ export function Layout({ children }: LayoutProps) {
     { href: '/admin', icon: BarChart3, label: 'Visão Geral' },
     { href: '/admin/cities', icon: Building, label: 'Cidades' },
     { href: '/admin/users', icon: Settings, label: 'Usuários' },
+    { href: '/admin/contracts', icon: FileText, label: 'Contratos' },
   ];
 
   const Navigation = () => (

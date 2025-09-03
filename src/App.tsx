@@ -34,6 +34,7 @@ import Frota from "./pages/Frota";
 import Manutencao from "./pages/Manutencao";
 import AdminOverview from "./pages/AdminOverview";
 import CitiesManagement from "./pages/CitiesManagement";
+import { ContractManagement } from "./pages/ContractManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -224,7 +225,15 @@ const App = () => (
                 </Layout>
               </ProtectedRoute>
             } />
-            
+
+            <Route path="/admin/contracts" element={
+              <ProtectedRoute requireRole="admin">
+                <Layout>
+                  <ContractManagement />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
             <Route path="/admin-temp" element={
               <AdminUserManagement />
             } />

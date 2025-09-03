@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Car, CheckCircle, Clock, Plus, Eye } from 'lucide-react';
+import { Car, CheckCircle, Clock, Plus, Eye, Trash2, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { PDFGenerator } from '@/components/PDFGenerator';
-import { DigitalSignature } from '@/components/DigitalSignature';
+import { TemplateBasedContract } from '@/components/TemplateBasedContract';
+import { ResponsibilityTermGenerator } from '@/components/ResponsibilityTermGenerator';
+import { TariffGenerator } from '@/components/contracts/TariffGenerator';
 import { EmailService } from '@/services/emailService';
 
 interface Rental {
@@ -20,7 +21,13 @@ interface Rental {
   client_name: string;
   client_email: string;
   client_phone: string;
-  client_cpf: string;
+  client_document: string; // Era client_document, mudou para client_document
+  // Campos de endereço do cliente
+  client_address_street?: string;
+  client_address_number?: string;
+  client_address_city?: string;
+  client_address_state?: string;
+  client_address_zip_code?: string;
   motorcycle_id: string;
   franchisee_id: string;
   plan_id: string;
@@ -56,6 +63,7 @@ export default function Locacoes() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [selectedFranchisee, setSelectedFranchisee] = useState<any>(null);
@@ -66,7 +74,13 @@ export default function Locacoes() {
     client_name: '',
     client_email: '',
     client_phone: '',
-    client_cpf: '',
+    client_document: '',
+    // Campos de endereço do cliente
+    client_address_street: '',
+    client_address_number: '',
+    client_address_city: '',
+    client_address_state: '',
+    client_address_zip_code: '',
     motorcycle_model: '',
     motorcycle_id: '',
     motorcycle_plate: '',
@@ -121,16 +135,46 @@ export default function Locacoes() {
       console.log('🔍 [Locacoes] City ID para filtro:', cityId);
 
 
-      const mockPlans: RentalPlan[] = [
-        {
-          id: '1',
-          name: 'Plano Mensal',
-          daily_rate: 45,
-          minimum_days: 30,
-          maximum_days: 365,
-          description: 'Plano ideal para uso prolongado'
-        }
-      ];
+      // Query para planos de locação
+      let plansQuery = (supabase as any)
+        .from('rental_plans')
+        .select('*')
+        .eq('status', 'active');
+
+      console.log('📋 [Locacoes] Configurando query de planos:', {
+        userRole: appUser?.role,
+        cityId: cityId,
+        willFilterByCity: appUser?.role !== 'admin' && appUser?.role !== 'master_br'
+      });
+
+      // Aplicar filtros baseados no papel do usuário para planos
+      switch (appUser?.role) {
+        case 'admin':
+        case 'master_br':
+          // Admin e Master BR veem todos os planos
+          console.log('📋 [Locacoes] Admin/Master BR - sem filtro por cidade');
+          break;
+        case 'regional':
+        case 'franchisee':
+          // Regional e Franqueado veem planos da sua cidade OU planos globais (city_id null)
+          if (cityId) {
+            console.log('📋 [Locacoes] Aplicando filtro por cidade (incluindo globais):', cityId);
+            plansQuery = plansQuery.or(`city_id.eq.${cityId},city_id.is.null`);
+          } else {
+            console.warn('⚠️ [Locacoes] Usuário regional/franqueado sem cityId - apenas planos globais');
+            plansQuery = plansQuery.is('city_id', null);
+          }
+          break;
+        default:
+          // Caso padrão: filtrar por cidade se disponível, incluindo planos globais
+          if (cityId) {
+            console.log('📋 [Locacoes] Usuário padrão - filtrando por cidade (incluindo globais):', cityId);
+            plansQuery = plansQuery.or(`city_id.eq.${cityId},city_id.is.null`);
+          } else {
+            console.log('📋 [Locacoes] Usuário padrão sem cityId - apenas planos globais');
+            plansQuery = plansQuery.is('city_id', null);
+          }
+      }
 
       // Query para motocicletas com filtro por cidade
       let motorcyclesQuery = supabase
@@ -213,15 +257,34 @@ export default function Locacoes() {
       }
 
       // Executar queries
-      const [motorcyclesResult, franchiseesResult, rentalsResult] = await Promise.all([
+      const [motorcyclesResult, franchiseesResult, rentalsResult, plansResult] = await Promise.all([
         motorcyclesQuery,
         franchiseesQuery,
-        rentalsQuery.order('created_at', { ascending: false })
+        rentalsQuery.order('created_at', { ascending: false }),
+        plansQuery.order('daily_rate', { ascending: true })
       ]);
 
       if (motorcyclesResult.error) throw motorcyclesResult.error;
       if (franchiseesResult.error) throw franchiseesResult.error;
       if (rentalsResult.error) throw rentalsResult.error;
+      
+      // Tratar erro de planos separadamente para dar feedback específico
+      if (plansResult.error) {
+        console.error('❌ [Locacoes] Erro ao carregar planos do banco:', plansResult.error);
+        console.error('❌ [Locacoes] Detalhes do erro:', {
+          message: plansResult.error.message,
+          code: plansResult.error.code,
+          details: plansResult.error.details
+        });
+        toast.error(`Erro ao carregar planos: ${plansResult.error.message}`);
+        // Definir array vazio para planos em caso de erro
+        setPlans([]);
+      } else {
+        console.log('✅ [Locacoes] Planos carregados com sucesso do banco:', {
+          count: plansResult.data?.length || 0,
+          data: plansResult.data
+        });
+      }
 
       // Converter dados das locações para o formato esperado
       const rentalsData = (rentalsResult.data || []).map((rental: any) => ({
@@ -229,7 +292,13 @@ export default function Locacoes() {
         client_name: rental.client_name,
         client_email: rental.client_email,
         client_phone: rental.client_phone,
-        client_cpf: rental.client_cpf,
+        client_document: rental.client_cpf, // Tabela usa client_cpf
+        // Campos de endereço do cliente
+        client_address_street: rental.client_address_street || '',
+        client_address_number: rental.client_address_number || '',
+        client_address_city: rental.client_address_city || '',
+        client_address_state: rental.client_address_state || '',
+        client_address_zip_code: rental.client_address_zip_code || '',
         motorcycle_id: rental.motorcycle_id,
         franchisee_id: rental.franchisee_id,
         plan_id: rental.plan_id,
@@ -247,13 +316,46 @@ export default function Locacoes() {
       }));
 
       setRentals(rentalsData);
-      setPlans(mockPlans);
-      setMotorcycles(motorcyclesResult.data || []);
+      
+      // Converter dados dos planos para o formato esperado (somente se não houver erro)
+      if (!plansResult.error) {
+        const plansData = (plansResult.data || []).map((plan: any) => ({
+          id: plan.id,
+          name: plan.name,
+          daily_rate: parseFloat(plan.daily_rate),
+          minimum_days: plan.minimum_days,
+          maximum_days: plan.maximum_days || 9999,
+          description: plan.description || ''
+        }));
+        
+        setPlans(plansData);
+        
+        console.log('✅ [Locacoes] Planos carregados do banco:', plansData.length);
+      }
+      
+      // Se usando mock data, adicionar dados de exemplo para motocicletas
+      const motorcyclesData = motorcyclesResult.data || [];
+      if (motorcyclesData.length > 0) {
+        // Adicionar dados de exemplo se não existirem
+        const motorcyclesWithDetails = motorcyclesData.map((moto: any, index: number) => ({
+          ...moto,
+          chassi: moto.chassi || `9BD176H78H${String(1234567 + index).padStart(7, '0')}`,
+          renavam: moto.renavam || `${String(12345678901 + index)}`,
+          marca: moto.marca || ['Yamaha', 'Honda', 'Suzuki', 'Kawasaki'][index % 4],
+          ano: moto.ano || (2020 + (index % 4)),
+          cor: moto.cor || ['Azul', 'Vermelha', 'Preta', 'Branca'][index % 4],
+          quilometragem: moto.quilometragem || (15000 + (index * 5000))
+        }));
+        setMotorcycles(motorcyclesWithDetails);
+      } else {
+        setMotorcycles(motorcyclesData);
+      }
+      
       setFranchisees(franchiseesResult.data || []);
 
       console.log('🔍 [Locacoes] Dados carregados:', {
         rentals: rentalsData.length,
-        plans: mockPlans.length,
+        plans: plansResult.error ? 0 : (plansResult.data?.length || 0),
         motorcycles: motorcyclesResult.data?.length || 0,
         franchisees: franchiseesResult.data?.length || 0
       });
@@ -293,24 +395,44 @@ export default function Locacoes() {
 
       if (clientData) {
         console.log('✅ [Locacoes] Cliente encontrado:', clientData);
-        
+
         const foundClient = {
           id: clientData.id,
           name: clientData.full_name,
           email: clientData.email || '',
           phone: clientData.phone || '',
-          cpf: clientData.cpf
+          cpf: clientData.cpf,
+          address: clientData.address || '',
+          number: clientData.number || '',
+          city: clientData.city || '',
+          state: clientData.state || '',
+          zip_code: clientData.zip_code || ''
         };
 
         setSelectedClient(foundClient);
+
+        console.log('🏠 [Locacoes] Dados de endereço do cliente:', {
+          address: foundClient.address,
+          number: foundClient.number,
+          city: foundClient.city,
+          state: foundClient.state,
+          zip_code: foundClient.zip_code
+        });
+
         setFormData(prev => ({
           ...prev,
           client_name: foundClient.name,
           client_email: foundClient.email,
           client_phone: foundClient.phone,
-          client_cpf: foundClient.cpf
+          client_document: foundClient.cpf,
+          // Dados de endereço agora serão salvos na locação
+          client_address_street: foundClient.address,
+          client_address_number: foundClient.number,
+          client_address_city: foundClient.city,
+          client_address_state: foundClient.state,
+          client_address_zip_code: foundClient.zip_code
         }));
-        toast.success('Cliente encontrado!');
+        toast.success('Cliente encontrado! Dados e endereço preenchidos automaticamente.');
       } else {
         console.log('❌ [Locacoes] Cliente não encontrado para CPF:', cpf);
         
@@ -320,7 +442,13 @@ export default function Locacoes() {
           client_name: '',
           client_email: '',
           client_phone: '',
-          client_cpf: cpf
+          client_document: cpf,
+          // Limpar campos de endereço quando cliente não é encontrado
+          client_address_street: '',
+          client_address_number: '',
+          client_address_city: '',
+          client_address_state: '',
+          client_address_zip_code: ''
         }));
         toast.info('Cliente não encontrado. Preencha os dados para cadastrar um novo cliente.');
       }
@@ -356,11 +484,15 @@ export default function Locacoes() {
 
   const handlePlateChange = (motorcycleId: string) => {
     const selectedPlate = availablePlates.find(m => m.id === motorcycleId);
+    console.log('🏍️ [Locacoes] Placa selecionada:', selectedPlate);
+
     setFormData(prev => ({
       ...prev,
       motorcycle_id: motorcycleId,
-      motorcycle_plate: selectedPlate?.placa || ''
+      motorcycle_plate: selectedPlate?.placa || 'N/A'
     }));
+
+    console.log('🔍 [Locacoes] FormData atualizado com placa:', selectedPlate?.placa || 'N/A');
 
     // Encontrar a moto selecionada e definir o franqueado automaticamente
     const selectedMotorcycle = motorcycles.find(m => m.id === motorcycleId);
@@ -409,7 +541,13 @@ export default function Locacoes() {
       client_name: '',
       client_email: '',
       client_phone: '',
-      client_cpf: '',
+      client_document: '',
+      // Campos de endereço do cliente
+      client_address_street: '',
+      client_address_number: '',
+      client_address_city: '',
+      client_address_state: '',
+      client_address_zip_code: '',
       motorcycle_model: '',
       motorcycle_id: '',
       motorcycle_plate: '',
@@ -431,73 +569,168 @@ export default function Locacoes() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
+      console.log('🚀 [Locacoes] Iniciando processo de salvamento...');
+      console.log('🔍 [Locacoes] FormData completo:', formData);
+      console.log('👤 [Locacoes] Usuário atual:', {
+        id: appUser?.id,
+        role: appUser?.role,
+        city_id: appUser?.city_id,
+        email: appUser?.email
+      });
+
       // Validações básicas
-      if (!formData.client_name || !formData.client_cpf || !formData.motorcycle_id || !formData.motorcycle_plate || !formData.start_date) {
+      if (!formData.client_name || !formData.client_document || !formData.motorcycle_id || !formData.plan_id || !formData.start_date) {
         toast.error('Preencha todos os campos obrigatórios');
         console.log('🚨 [Locacoes] Campos faltando:', {
           client_name: formData.client_name,
-          client_cpf: formData.client_cpf,
+          client_document: formData.client_document,
           motorcycle_id: formData.motorcycle_id,
-          motorcycle_plate: formData.motorcycle_plate,
+          plan_id: formData.plan_id,
           start_date: formData.start_date
         });
         return;
       }
 
+      console.log('✅ [Locacoes] Validações básicas passaram');
+
+      // Definir city_id (Salvador como padrão para master_br)
+      const cityId = appUser?.city_id || '73fbe697-17c3-4f2f-a727-75c55cbc8dea'; // Salvador como padrão
+      console.log('🏙️ [Locacoes] City ID definido:', cityId);
+
       // Validar se IDs são UUIDs válidos
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      
+
+      console.log('🔍 [Locacoes] Validando UUIDs:', {
+        motorcycle_id: formData.motorcycle_id,
+        plan_id: formData.plan_id,
+        franchisee_id: formData.franchisee_id
+      });
+
       if (!uuidRegex.test(formData.motorcycle_id)) {
+        console.error('❌ [Locacoes] Motorcycle ID inválido:', formData.motorcycle_id);
         toast.error('Selecione uma motocicleta válida');
         return;
       }
 
-      if (formData.franchisee_id && !uuidRegex.test(formData.franchisee_id)) {
-        console.warn('Franchisee ID inválido, será omitido:', formData.franchisee_id);
+      if (!uuidRegex.test(formData.plan_id)) {
+        console.error('❌ [Locacoes] Plan ID inválido:', formData.plan_id);
+        toast.error('Selecione um plano válido');
+        return;
       }
+
+      if (formData.franchisee_id && !uuidRegex.test(formData.franchisee_id)) {
+        console.warn('⚠️ [Locacoes] Franchisee ID inválido, será omitido:', formData.franchisee_id);
+      }
+
+      console.log('✅ [Locacoes] Validações de UUID passaram');
 
       // Obter dados necessários
       const selectedPlan = plans.find(p => p.id === formData.plan_id);
       const dailyRate = selectedPlan?.daily_rate || 0;
-      
+
+      // Validar se o plano foi encontrado
+      if (!selectedPlan) {
+        console.error('❌ [Locacoes] Plano não encontrado:', formData.plan_id);
+        toast.error('Plano de locação não encontrado. Selecione um plano válido.');
+        return;
+      }
+
+      if (dailyRate <= 0) {
+        console.error('❌ [Locacoes] Valor da diária inválido:', dailyRate);
+        toast.error('Valor da diária do plano é inválido.');
+        return;
+      }
+
       // Calcular total de dias se temos as datas
       let totalDays = 1;
       if (formData.start_date && formData.end_date) {
         const startDate = new Date(formData.start_date);
         const endDate = new Date(formData.end_date);
+
+        // Validar se as datas são válidas
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          console.error('❌ [Locacoes] Datas inválidas:', { start_date: formData.start_date, end_date: formData.end_date });
+          toast.error('Datas de início ou fim são inválidas.');
+          return;
+        }
+
+        if (endDate < startDate) {
+          console.error('❌ [Locacoes] Data de fim anterior à data de início');
+          toast.error('A data de fim deve ser posterior à data de início.');
+          return;
+        }
+
         const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
         totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
       }
+
+      console.log('🔍 [Locacoes] Cálculos realizados:', {
+        selectedPlan: selectedPlan.name,
+        dailyRate,
+        totalDays,
+        totalAmount: dailyRate * totalDays
+      });
 
 
       // Criar dados da locação conforme esquema da tabela
       const rentalData: any = {
         client_name: formData.client_name,
-        client_email: formData.client_email || '',
+        client_email: formData.client_email || 'nao-informado@email.com', // Campo obrigatório na tabela
         client_phone: formData.client_phone || '',
-        client_cpf: formData.client_cpf,
+        client_cpf: formData.client_document, // Tabela usa client_cpf
+        client_address: '', // Campo legado - mantido para compatibilidade
+        // Novos campos de endereço detalhado
+        client_address_street: formData.client_address_street || '',
+        client_address_number: formData.client_address_number || '',
+        client_address_city: formData.client_address_city || '',
+        client_address_state: formData.client_address_state || '',
+        client_address_zip_code: formData.client_address_zip_code || '',
         motorcycle_id: formData.motorcycle_id,
-        motorcycle_plate: formData.motorcycle_plate || '',
+        motorcycle_plate: formData.motorcycle_plate || 'N/A', // Campo obrigatório na tabela
+        franchisee_id: formData.franchisee_id || selectedFranchisee?.id,
+        plan_id: formData.plan_id,
+        city_id: cityId,
         start_date: formData.start_date,
         total_days: totalDays,
         daily_rate: dailyRate,
         total_amount: parseFloat(formData.total_value) || (dailyRate * totalDays),
+        deposit_amount: parseFloat(formData.deposit_amount) || 0,
         status: 'active'
       };
+
+      // Validar campos obrigatórios conforme estrutura da tabela
+      const requiredFields = {
+        client_name: rentalData.client_name,
+        client_cpf: rentalData.client_cpf,
+        client_email: rentalData.client_email,
+        motorcycle_plate: rentalData.motorcycle_plate,
+        daily_rate: rentalData.daily_rate,
+        total_days: rentalData.total_days,
+        total_amount: rentalData.total_amount,
+        deposit_amount: rentalData.deposit_amount,
+        start_date: rentalData.start_date
+      };
+
+      console.log('🔍 [Locacoes] Verificando campos obrigatórios:', requiredFields);
+
+      // Verificar se todos os campos obrigatórios estão preenchidos
+      const missingFields = Object.entries(requiredFields)
+        .filter(([, value]) => !value && value !== 0)
+        .map(([key]) => key);
+
+      if (missingFields.length > 0) {
+        console.error('❌ [Locacoes] Campos obrigatórios faltando:', missingFields);
+        toast.error(`Campos obrigatórios faltando: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      console.log('✅ [Locacoes] Todas as validações passaram, preparando para salvar...');
 
       // Adicionar campos opcionais apenas se tiverem valores válidos
       if (formData.end_date) {
         rentalData.end_date = formData.end_date;
-      }
-
-      if (formData.franchisee_id && uuidRegex.test(formData.franchisee_id)) {
-        rentalData.franchisee_id = formData.franchisee_id;
-      }
-
-      if (formData.deposit_amount) {
-        rentalData.deposit_amount = parseFloat(formData.deposit_amount);
       }
 
       if (formData.observations) {
@@ -510,6 +743,13 @@ export default function Locacoes() {
 
       if (formData.km_final) {
         rentalData.km_final = parseInt(formData.km_final);
+      }
+
+      // Garantir que a placa da motocicleta está preenchida
+      if (!rentalData.motorcycle_plate || rentalData.motorcycle_plate === '') {
+        const selectedMoto = motorcycles.find(m => m.id === formData.motorcycle_id);
+        rentalData.motorcycle_plate = selectedMoto?.placa || 'N/A';
+        console.log('🔧 [Locacoes] Placa da moto corrigida:', rentalData.motorcycle_plate);
       }
 
       console.log('🔍 [Locacoes] Dados a serem enviados:', rentalData);
@@ -528,7 +768,27 @@ export default function Locacoes() {
 
       if (saveError) {
         console.error('❌ [Locacoes] Erro ao salvar locação:', saveError);
-        toast.error('Erro ao salvar locação no banco de dados');
+        console.error('❌ [Locacoes] Detalhes do erro:', {
+          message: saveError.message,
+          code: saveError.code,
+          details: saveError.details,
+          hint: saveError.hint
+        });
+        console.error('❌ [Locacoes] Dados que causaram o erro:', rentalData);
+
+        // Mensagem de erro mais específica baseada no tipo de erro
+        let errorMessage = 'Erro ao salvar locação no banco de dados';
+        if (saveError.code === '23505') {
+          errorMessage = 'Já existe uma locação com estes dados';
+        } else if (saveError.code === '23503') {
+          errorMessage = 'Dados de referência inválidos (motocicleta, plano ou franqueado não encontrado)';
+        } else if (saveError.code === '23514') {
+          errorMessage = 'Dados inválidos (verifique valores numéricos e datas)';
+        } else if (saveError.message) {
+          errorMessage = `Erro: ${saveError.message}`;
+        }
+
+        toast.error(errorMessage);
         return;
       }
 
@@ -540,7 +800,13 @@ export default function Locacoes() {
         client_name: savedRental.client_name,
         client_email: savedRental.client_email,
         client_phone: savedRental.client_phone,
-        client_cpf: savedRental.client_cpf,
+        client_document: savedRental.client_cpf, // Tabela usa client_cpf
+        // Campos de endereço do cliente
+        client_address_street: savedRental.client_address_street || '',
+        client_address_number: savedRental.client_address_number || '',
+        client_address_city: savedRental.client_address_city || '',
+        client_address_state: savedRental.client_address_state || '',
+        client_address_zip_code: savedRental.client_address_zip_code || '',
         motorcycle_id: savedRental.motorcycle_id,
         franchisee_id: savedRental.franchisee_id,
         plan_id: savedRental.plan_id,
@@ -605,6 +871,143 @@ export default function Locacoes() {
         {config.label}
       </Badge>
     );
+  };
+
+  const handleEditRental = (rental: Rental) => {
+    console.log('✏️ [Locacoes] Preparando edição da locação:', rental);
+    
+    // Preencher o formulário com os dados da locação
+    setFormData({
+      client_name: rental.client_name,
+      client_email: rental.client_email,
+      client_phone: rental.client_phone,
+      client_document: rental.client_document,
+      // Campos de endereço do cliente (podem estar vazios em locações antigas)
+      client_address_street: rental.client_address_street || '',
+      client_address_number: rental.client_address_number || '',
+      client_address_city: rental.client_address_city || '',
+      client_address_state: rental.client_address_state || '',
+      client_address_zip_code: rental.client_address_zip_code || '',
+      motorcycle_model: motorcycles.find(m => m.id === rental.motorcycle_id)?.modelo || '',
+      motorcycle_id: rental.motorcycle_id,
+      motorcycle_plate: motorcycles.find(m => m.id === rental.motorcycle_id)?.placa || '',
+      franchisee_id: rental.franchisee_id,
+      plan_id: rental.plan_id,
+      start_date: rental.start_date,
+      end_date: rental.end_date,
+      total_value: rental.total_amount.toString(),
+      deposit_amount: '',
+      km_inicial: rental.km_inicial.toString(),
+      km_final: rental.km_final.toString(),
+      observations: rental.observations || ''
+    });
+
+    // Configurar cliente selecionado
+    setSelectedClient({
+      id: rental.id,
+      name: rental.client_name,
+      email: rental.client_email,
+      phone: rental.client_phone,
+      cpf: rental.client_document
+    });
+    
+    setCpfSearch(rental.client_document);
+    setSelectedRental(rental);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteRental = async (rentalId: string) => {
+    try {
+      // Confirmar a exclusão com o usuário
+      const confirmed = window.confirm('Tem certeza que deseja apagar esta locação? Esta ação não pode ser desfeita.');
+      
+      if (!confirmed) {
+        return;
+      }
+
+      console.log('🗑️ [Locacoes] Apagando locação:', rentalId);
+
+      // Deletar do banco de dados
+      const { error } = await (supabase as any)
+        .from('rentals')
+        .delete()
+        .eq('id', rentalId);
+
+      if (error) {
+        console.error('❌ [Locacoes] Erro ao apagar locação:', error);
+        toast.error('Erro ao apagar locação');
+        return;
+      }
+
+      // Remover da lista local
+      setRentals(prev => prev.filter(r => r.id !== rentalId));
+      
+      console.log('✅ [Locacoes] Locação apagada com sucesso');
+      toast.success('Locação apagada com sucesso!');
+
+    } catch (error) {
+      console.error('❌ [Locacoes] Erro inesperado ao apagar locação:', error);
+      toast.error('Erro inesperado ao apagar locação');
+    }
+  };
+
+  const handleUpdateRental = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedRental) {
+      toast.error('Nenhuma locação selecionada para edição');
+      return;
+    }
+
+    try {
+      console.log('📝 [Locacoes] Atualizando locação:', selectedRental.id);
+
+      // Dados atualizados
+      const updatedData: any = {
+        client_name: formData.client_name,
+        client_email: formData.client_email || '',
+        km_inicial: parseInt(formData.km_inicial) || 0,
+        km_final: parseInt(formData.km_final) || 0,
+        notes: formData.observations || ''
+      };
+
+      // Atualizar no banco de dados
+      const { error } = await (supabase as any)
+        .from('rentals')
+        .update(updatedData)
+        .eq('id', selectedRental.id);
+
+      if (error) {
+        console.error('❌ [Locacoes] Erro ao atualizar locação:', error);
+        toast.error('Erro ao atualizar locação');
+        return;
+      }
+
+      // Atualizar na lista local
+      setRentals(prev => prev.map(rental => 
+        rental.id === selectedRental.id 
+          ? {
+              ...rental,
+              client_name: formData.client_name,
+              client_email: formData.client_email,
+              km_inicial: parseInt(formData.km_inicial) || 0,
+              km_final: parseInt(formData.km_final) || 0,
+              observations: formData.observations || ''
+            }
+          : rental
+      ));
+
+      console.log('✅ [Locacoes] Locação atualizada com sucesso');
+      toast.success('Locação atualizada com sucesso!');
+      
+      setIsEditDialogOpen(false);
+      resetForm();
+      setSelectedRental(null);
+
+    } catch (error) {
+      console.error('❌ [Locacoes] Erro inesperado ao atualizar locação:', error);
+      toast.error('Erro inesperado ao atualizar locação');
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -690,7 +1093,7 @@ export default function Locacoes() {
               {/* Busca por CPF */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <Label htmlFor="client_cpf">CPF/CNPJ do Cliente</Label>
+                  <Label htmlFor="client_document">CPF/CNPJ do Cliente</Label>
                   {selectedClient && (
                     <Button
                       type="button"
@@ -703,7 +1106,13 @@ export default function Locacoes() {
                           client_name: '',
                           client_email: '',
                           client_phone: '',
-                          client_cpf: ''
+                          client_document: '',
+                          // Limpar campos de endereço
+                          client_address_street: '',
+                          client_address_number: '',
+                          client_address_city: '',
+                          client_address_state: '',
+                          client_address_zip_code: ''
                         }));
                         setCpfSearch('');
                       }}
@@ -713,7 +1122,7 @@ export default function Locacoes() {
                   )}
                 </div>
                 <Input
-                  id="client_cpf"
+                  id="client_document"
                   value={cpfSearch}
                   onChange={(e) => {
                     setCpfSearch(e.target.value);
@@ -771,6 +1180,70 @@ export default function Locacoes() {
                 />
               </div>
 
+              {/* Campos de Endereço do Cliente */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900">Endereço do Cliente</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="client_address_street">Rua/Avenida</Label>
+                    <Input
+                      id="client_address_street"
+                      value={formData.client_address_street}
+                      onChange={(e) => setFormData(prev => ({...prev, client_address_street: e.target.value}))}
+                      placeholder="Nome da rua"
+                      className={selectedClient ? "bg-gray-50" : ""}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client_address_number">Número</Label>
+                    <Input
+                      id="client_address_number"
+                      value={formData.client_address_number}
+                      onChange={(e) => setFormData(prev => ({...prev, client_address_number: e.target.value}))}
+                      placeholder="123"
+                      className={selectedClient ? "bg-gray-50" : ""}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="client_address_city">Cidade</Label>
+                    <Input
+                      id="client_address_city"
+                      value={formData.client_address_city}
+                      onChange={(e) => setFormData(prev => ({...prev, client_address_city: e.target.value}))}
+                      placeholder="Salvador"
+                      className={selectedClient ? "bg-gray-50" : ""}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client_address_state">Estado</Label>
+                    <Input
+                      id="client_address_state"
+                      value={formData.client_address_state}
+                      onChange={(e) => setFormData(prev => ({...prev, client_address_state: e.target.value}))}
+                      placeholder="BA"
+                      className={selectedClient ? "bg-gray-50" : ""}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client_address_zip_code">CEP</Label>
+                    <Input
+                      id="client_address_zip_code"
+                      value={formData.client_address_zip_code}
+                      onChange={(e) => setFormData(prev => ({...prev, client_address_zip_code: e.target.value}))}
+                      placeholder="40000-000"
+                      className={selectedClient ? "bg-gray-50" : ""}
+                    />
+                  </div>
+                </div>
+                {selectedClient && (
+                  <p className="text-sm text-green-600">
+                    ✓ Endereço preenchido automaticamente dos dados do cliente
+                  </p>
+                )}
+              </div>
+
               {/* Seleção de Moto */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -800,13 +1273,49 @@ export default function Locacoes() {
                     <SelectContent>
                       {availablePlates.map((motorcycle) => (
                         <SelectItem key={motorcycle.id} value={motorcycle.id}>
-                          {motorcycle.placa} - {motorcycle.modelo}
+                          <div className="flex flex-col">
+                            <span className="font-medium">{motorcycle.placa} - {motorcycle.modelo}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {motorcycle.marca} {motorcycle.ano} • {motorcycle.cor} • {motorcycle.quilometragem?.toLocaleString('pt-BR')} km
+                            </span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+
+              {/* Informações da Motocicleta Selecionada */}
+              {formData.motorcycle_id && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                    <Car className="h-4 w-4" />
+                    Motocicleta Selecionada
+                  </h4>
+                  {(() => {
+                    const selectedMoto = motorcycles.find(m => m.id === formData.motorcycle_id);
+                    if (!selectedMoto) return <p className="text-sm text-muted-foreground">Motocicleta não encontrada</p>;
+                    
+                    return (
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="space-y-2">
+                          <p><strong>Placa:</strong> {selectedMoto.placa || 'N/A'}</p>
+                          <p><strong>Modelo:</strong> {selectedMoto.modelo || 'N/A'}</p>
+                          <p><strong>Marca:</strong> {selectedMoto.marca || 'N/A'}</p>
+                          <p><strong>Ano:</strong> {selectedMoto.ano || 'N/A'}</p>
+                        </div>
+                        <div className="space-y-2">
+                          <p><strong>Chassi:</strong> {selectedMoto.chassi || 'N/A'}</p>
+                          <p><strong>RENAVAM:</strong> {selectedMoto.renavam || 'N/A'}</p>
+                          <p><strong>Cor:</strong> {selectedMoto.cor || 'N/A'}</p>
+                          <p><strong>Quilometragem:</strong> {selectedMoto.quilometragem?.toLocaleString('pt-BR') || 'N/A'} km</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* Franqueado (somente leitura) */}
               <div className="space-y-2">
@@ -827,11 +1336,29 @@ export default function Locacoes() {
                     <SelectValue placeholder="Selecione um plano" />
                   </SelectTrigger>
                   <SelectContent>
-                    {plans.map((plan) => (
-                      <SelectItem key={plan.id} value={plan.id}>
-                        {plan.name} - R$ {plan.daily_rate}/dia
-                      </SelectItem>
-                    ))}
+                    {(() => {
+                      console.log('🔍 [Locacoes] Renderizando planos:', {
+                        plansLength: plans.length,
+                        plans: plans
+                      });
+
+                      return plans.length > 0 ? (
+                        plans.map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{plan.name} - R$ {plan.daily_rate}/dia</span>
+                              <span className="text-xs text-muted-foreground">
+                                {plan.minimum_days}-{plan.maximum_days === 9999 ? '∞' : plan.maximum_days} dias • {plan.description}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-plans" disabled>
+                          <span className="text-muted-foreground">Nenhum plano disponível</span>
+                        </SelectItem>
+                      );
+                    })()}
                   </SelectContent>
                 </Select>
               </div>
@@ -894,9 +1421,9 @@ export default function Locacoes() {
                 </div>
               </div>
 
-              {/* Valor Total */}
+              {/* Valor Semanal */}
               <div className="space-y-2">
-                <Label htmlFor="total_amount">Valor Total</Label>
+                <Label htmlFor="total_amount">Valor Semanal</Label>
                 <Input
                   id="total_amount"
                   type="number"
@@ -912,9 +1439,9 @@ export default function Locacoes() {
                 )}
               </div>
 
-              {/* Valor do Depósito */}
+              {/* Valor do Caução */}
               <div className="space-y-2">
-                <Label htmlFor="deposit_amount">Valor do Depósito</Label>
+                <Label htmlFor="deposit_amount">Valor do Caução</Label>
                 <Input
                   id="deposit_amount"
                   type="number"
@@ -997,6 +1524,7 @@ export default function Locacoes() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-2">Cliente</th>
+                  <th className="text-left p-2">Endereço</th>
                   <th className="text-left p-2">Placa</th>
                   <th className="text-left p-2">Franqueado</th>
                   <th className="text-left p-2">Período</th>
@@ -1013,6 +1541,14 @@ export default function Locacoes() {
                       <div>
                         <div className="font-medium">{rental.client_name}</div>
                         <div className="text-sm text-muted-foreground">{rental.client_email}</div>
+                      </div>
+                    </td>
+                    <td className="p-2">
+                      <div className="text-sm">
+                        <div className="font-medium">Dados cadastrais no sistema de clientes</div>
+                        <div className="text-muted-foreground text-xs">
+                          Endereço não armazenado em locações
+                        </div>
                       </div>
                     </td>
                     <td className="p-2">
@@ -1048,9 +1584,32 @@ export default function Locacoes() {
                             setSelectedRental(rental);
                             setIsDetailsDialogOpen(true);
                           }}
+                          title="Ver detalhes"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
+                        {appUser?.role !== 'franchisee' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditRental(rental)}
+                            className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                            title="Editar locação"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {appUser?.role !== 'franchisee' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteRental(rental.id)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            title="Apagar locação"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1079,17 +1638,36 @@ export default function Locacoes() {
                   <h3 className="text-lg font-semibold">Dados do Cliente</h3>
                   <div className="space-y-2">
                     <p><strong>Nome:</strong> {selectedRental.client_name}</p>
-                    <p><strong>CPF:</strong> {selectedRental.client_cpf}</p>
+                    <p><strong>CPF:</strong> {selectedRental.client_document}</p>
                     <p><strong>Email:</strong> {selectedRental.client_email}</p>
                     <p><strong>Telefone:</strong> {selectedRental.client_phone}</p>
+
+                    {/* Endereço do Cliente */}
+                    <div className="mt-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Endereço</h4>
+                      <div className="space-y-1 text-sm">
+                        <p><strong>Rua:</strong> {selectedRental.client_address_street || 'Não informado'}</p>
+                        <p><strong>Número:</strong> {selectedRental.client_address_number || 'Não informado'}</p>
+                        <p><strong>Cidade:</strong> {selectedRental.client_address_city || 'Não informado'}</p>
+                        <p><strong>Estado:</strong> {selectedRental.client_address_state || 'Não informado'}</p>
+                        <p><strong>CEP:</strong> {selectedRental.client_address_zip_code || 'Não informado'}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">Dados da Motocicleta</h3>
                   <div className="space-y-2">
-                    <p><strong>Modelo:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || 'N/A'}</p>
                     <p><strong>Placa:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || 'N/A'}</p>
+                    <p><strong>Modelo:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || 'N/A'}</p>
+                    <p><strong>Marca:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.marca || 'N/A'}</p>
+                    <p><strong>Ano:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.ano || 'N/A'}</p>
+                    <p><strong>Cor:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.cor || 'N/A'}</p>
+                    <p><strong>Chassi:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.chassi || 'N/A'}</p>
+                    <p><strong>RENAVAM:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.renavam || 'N/A'}</p>
+                    <p><strong>Quilometragem:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.quilometragem?.toLocaleString('pt-BR') || 'N/A'} km</p>
+                    <p><strong>Tipo:</strong> {motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.status === 'active' ? 'Ativa' : motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.status || 'N/A'}</p>
                     <p><strong>Franqueado:</strong> {franchisees.find(f => f.id === selectedRental.franchisee_id)?.fantasy_name || 'N/A'}</p>
                   </div>
                 </div>
@@ -1124,44 +1702,179 @@ export default function Locacoes() {
                 </div>
               )}
 
-              {/* Gerador de PDF */}
+              {/* Sistema de Contratos Baseado em Templates */}
               <div className="border-t pt-6">
-                <PDFGenerator
+                <TemplateBasedContract
                   rentalData={{
                     ...selectedRental,
                     motorcycle_model: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || '',
                     motorcycle_plate: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || '',
+                    motorcycle_year: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.ano?.toString() || '',
+                    motorcycle_color: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.cor || '',
+                    motorcycle_chassi: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.chassi || '',
+                    motorcycle_renavam: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.renavam || '',
                     franchisee_name: franchisees.find(f => f.id === selectedRental.franchisee_id)?.fantasy_name || '',
                     franchisee_cnpj: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cnpj || '',
+                    franchisee_address: franchisees.find(f => f.id === selectedRental.franchisee_id)?.endereco || '',
+                    franchisee_phone: franchisees.find(f => f.id === selectedRental.franchisee_id)?.whatsapp_01 || '',
                     plan_name: plans.find(p => p.id === selectedRental.plan_id)?.name || '',
+                    client_cpf: selectedRental.client_document, // Usando client_cpf para componente
                     plan_price: selectedRental.daily_rate * selectedRental.total_days
                   }}
-                  onPDFGenerated={(url, type) => {
-                    console.log(`PDF ${type} gerado:`, url);
+                  cityId={appUser?.city_id || ''}
+                  onContractGenerated={(contract) => {
+                    console.log('Contrato gerado:', contract);
+                    toast.success('Contrato gerado com sucesso!');
+                  }}
+                  onSignatureRequested={(signatureRequest) => {
+                    console.log('Assinatura solicitada:', signatureRequest);
+                    toast.success('Contrato enviado para assinatura!');
                   }}
                 />
               </div>
 
-              {/* Assinatura Eletrônica */}
+              {/* Anexo V - Termo de Responsabilidade */}
               <div className="border-t pt-6">
-                <DigitalSignature
+                <ResponsibilityTermGenerator
                   rentalData={{
                     ...selectedRental,
+                    // Mapear campos de endereço para o formato esperado pelo ResponsibilityTermGenerator
+                    client_address: selectedRental.client_address_street || '',
+                    client_number: selectedRental.client_address_number || '',
+                    client_city: selectedRental.client_address_city || '',
+                    client_state: selectedRental.client_address_state || 'BA',
+                    client_cep: selectedRental.client_address_zip_code || '',
                     motorcycle_model: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || '',
                     motorcycle_plate: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || '',
-                    franchisee_name: franchisees.find(f => f.id === selectedRental.franchisee_id)?.fantasy_name || '',
-                    franchisee_cnpj: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cnpj || '',
-                    plan_name: plans.find(p => p.id === selectedRental.plan_id)?.name || '',
-                    plan_price: selectedRental.daily_rate * selectedRental.total_days
+                    motorcycle_chassi: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.chassi || '',
+                    motorcycle_brand: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.marca || '',
+                    client_cpf: selectedRental.client_document, // Usando client_cpf para componente
+                    contract_city: 'Salvador' // ou pegar da cidade do usuário
                   }}
-                  onSignatureRequested={(signatureRequest) => {
-                    console.log('Solicitação de assinatura criada:', signatureRequest);
-                    toast.success('Solicitação de assinatura enviada!');
+                  cityId={appUser?.city_id || ''}
+                  onTermGenerated={(termUrl) => {
+                    console.log('Anexo V gerado:', termUrl);
+                    toast.success('Anexo V gerado com sucesso!');
+                  }}
+                />
+              </div>
+
+              {/* Anexo IV - Tarifário LOCAGORA */}
+              <div className="border-t pt-6">
+                <TariffGenerator
+                  tariffData={{
+                    client_name: selectedRental.client_name,
+                    client_cpf: selectedRental.client_document, // TariffData espera client_cpf
+                    client_address: selectedRental.client_address_street || '',
+                    client_neighborhood: '',
+                    client_city: selectedRental.client_address_city || 'Salvador',
+                    client_state: selectedRental.client_address_state || 'BA',
+                    client_number: selectedRental.client_address_number || '',
+                    client_cep: selectedRental.client_address_zip_code || '',
+                    motorcycle_model: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || '',
+                    motorcycle_brand: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.marca || '',
+                    motorcycle_plate: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || '',
+                    contract_city: selectedRental.client_address_city || 'Salvador',
+                    contract_date: new Date().toLocaleDateString('pt-BR')
+                  }}
+                  cityId={appUser?.city_id || ''}
+                  rentalId={selectedRental.id}
+                  onTariffGenerated={(tariffUrl) => {
+                    console.log('Anexo IV gerado:', tariffUrl);
+                    toast.success('Anexo IV gerado com sucesso!');
                   }}
                 />
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Edição da Locação */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Locação</DialogTitle>
+            <DialogDescription>
+              Modifique os dados da locação selecionada
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Usar o mesmo formulário do modal de criação, mas com handleSubmit modificado */}
+          <form className="space-y-4" onSubmit={(e) => handleUpdateRental(e)}>
+            {/* Dados do Cliente */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_client_name">Nome do Cliente</Label>
+                <Input
+                  id="edit_client_name"
+                  value={formData.client_name}
+                  onChange={(e) => setFormData(prev => ({...prev, client_name: e.target.value}))}
+                  placeholder="Nome completo"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_client_email">Email</Label>
+                <Input
+                  id="edit_client_email"
+                  type="email"
+                  value={formData.client_email}
+                  onChange={(e) => setFormData(prev => ({...prev, client_email: e.target.value}))}
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+            </div>
+
+            {/* KM */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_km_inicial">KM Inicial</Label>
+                <Input
+                  id="edit_km_inicial"
+                  type="number"
+                  value={formData.km_inicial}
+                  onChange={(e) => setFormData(prev => ({...prev, km_inicial: e.target.value}))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_km_final">KM Final</Label>
+                <Input
+                  id="edit_km_final"
+                  type="number"
+                  value={formData.km_final}
+                  onChange={(e) => setFormData(prev => ({...prev, km_final: e.target.value}))}
+                />
+              </div>
+            </div>
+
+            {/* Observações */}
+            <div className="space-y-2">
+              <Label htmlFor="edit_observations">Observações</Label>
+              <Textarea
+                id="edit_observations"
+                value={formData.observations}
+                placeholder="Observações adicionais..."
+                onChange={(e) => setFormData(prev => ({...prev, observations: e.target.value}))}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button type="submit" className="flex-1">
+                Atualizar Locação
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsEditDialogOpen(false);
+                  resetForm();
+                }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
