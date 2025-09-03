@@ -7,8 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { DigitalSignatureService, SignatureRequest, Signer } from '@/services/digitalSignatureService';
-import { PDFService, ContractData } from '@/services/pdfService';
-import { FileText, Send, Clock, CheckCircle, XCircle, Users, Mail, Phone, User } from 'lucide-react';
+import { PDFService } from '@/services/pdfService';
+import { FileText, Send, Clock, CheckCircle, XCircle, Users, Mail, User } from 'lucide-react';
+import BeSignSignature from './BeSignSignature';
+import BeSignDocumentManager from './BeSignDocumentManager';
 
 interface DigitalSignatureProps {
   rentalData: any;
@@ -19,6 +21,7 @@ export const DigitalSignature: React.FC<DigitalSignatureProps> = ({
   rentalData, 
   onSignatureRequested 
 }) => {
+  const [activeTab, setActiveTab] = useState<'besign' | 'legacy'>('besign');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [signatureRequests, setSignatureRequests] = useState<SignatureRequest[]>([]);
@@ -41,10 +44,10 @@ export const DigitalSignature: React.FC<DigitalSignatureProps> = ({
   const { toast } = useToast();
 
   useEffect(() => {
-    if (rentalData?.id) {
+    if (rentalData?.id && activeTab === 'legacy') {
       loadSignatureRequests();
     }
-  }, [rentalData?.id]);
+  }, [rentalData?.id, activeTab]);
 
   const loadSignatureRequests = async () => {
     try {
@@ -57,10 +60,10 @@ export const DigitalSignature: React.FC<DigitalSignatureProps> = ({
 
   const handleCreateSignatureRequest = async () => {
     setIsLoading(true);
-    
+
     try {
       // Validar signatários
-      const validSigners = signers.filter(signer => 
+      const validSigners = signers.filter(signer =>
         signer.name && signer.email && signer.role
       );
 
@@ -73,25 +76,42 @@ export const DigitalSignature: React.FC<DigitalSignatureProps> = ({
         return;
       }
 
-      // Gerar PDF do contrato
-      const contractData: ContractData = {
-        client_name: rentalData.client_name || '',
+      // Gerar contrato diretamente com os dados da locação
+      console.log('📄 Gerando contrato para:', rentalData.client_name);
+      
+      const contractData = {
+        // Dados do Cliente
+        client_name: rentalData.client_name || 'Cliente',
         client_cpf: rentalData.client_cpf || '',
         client_email: rentalData.client_email || '',
         client_phone: rentalData.client_phone || '',
-        motorcycle_model: rentalData.motorcycle_model || '',
+        client_address: rentalData.client_address || '',
+
+        // Dados da Motocicleta
+        motorcycle_model: rentalData.motorcycle_model || 'N/A',
         motorcycle_plate: rentalData.motorcycle_plate || '',
+        motorcycle_year: rentalData.motorcycle_year || '',
+        motorcycle_color: rentalData.motorcycle_color || '',
+
+        // Dados do Franqueado
         franchisee_name: rentalData.franchisee_name || 'Master Brasil',
         franchisee_cnpj: rentalData.franchisee_cnpj || '',
-        plan_name: rentalData.plan_name || '',
+        franchisee_address: rentalData.franchisee_address || '',
+        franchisee_phone: rentalData.franchisee_phone || '',
+
+        // Dados da Locação
+        plan_name: rentalData.plan_name || 'Plano Padrão',
         plan_price: rentalData.plan_price || 0,
         start_date: rentalData.start_date || new Date().toISOString(),
         end_date: rentalData.end_date || '',
         km_inicial: rentalData.km_inicial || 0,
-        deposit_value: rentalData.deposit_value || 500,
+        km_final: rentalData.km_final || 0,
+        deposit_value: rentalData.deposit_value || 0,
         observations: rentalData.observations || '',
-        contract_number: rentalData.id || `CONT-${Date.now()}`,
-        created_at: rentalData.created_at || new Date().toISOString(),
+
+        // Dados do Contrato
+        contract_number: `CONT-${Date.now()}`,
+        created_at: new Date().toISOString(),
       };
 
       const doc = PDFService.generateRentalContract(contractData);
@@ -103,6 +123,7 @@ export const DigitalSignature: React.FC<DigitalSignatureProps> = ({
         pdfBlob,
         fileName,
         validSigners,
+        contractData.contract_number,
         rentalData.id
       );
 
@@ -122,11 +143,18 @@ export const DigitalSignature: React.FC<DigitalSignatureProps> = ({
       setIsDialogOpen(false);
 
     } catch (error: any) {
-      console.error('Erro ao criar solicitação de assinatura:', error);
+      console.error('❌ [DigitalSignature] Erro ao criar solicitação de assinatura:', error);
+
+      let errorMessage = "Não foi possível criar a solicitação de assinatura.";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
       toast({
         variant: "destructive",
         title: "Erro",
-        description: "Não foi possível criar a solicitação de assinatura.",
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -198,6 +226,40 @@ export const DigitalSignature: React.FC<DigitalSignatureProps> = ({
     }
   };
 
+  const generateContractForBeSign = async () => {
+    const contractData = {
+      client_name: rentalData.client_name || 'Cliente',
+      client_cpf: rentalData.client_cpf || '',
+      client_email: rentalData.client_email || '',
+      client_phone: rentalData.client_phone || '',
+      client_address: rentalData.client_address || '',
+      motorcycle_model: rentalData.motorcycle_model || 'N/A',
+      motorcycle_plate: rentalData.motorcycle_plate || '',
+      motorcycle_year: rentalData.motorcycle_year || '',
+      motorcycle_color: rentalData.motorcycle_color || '',
+      franchisee_name: rentalData.franchisee_name || 'Master Brasil',
+      franchisee_cnpj: rentalData.franchisee_cnpj || '',
+      franchisee_address: rentalData.franchisee_address || '',
+      franchisee_phone: rentalData.franchisee_phone || '',
+      plan_name: rentalData.plan_name || 'Plano Padrão',
+      plan_price: rentalData.plan_price || 0,
+      start_date: rentalData.start_date || new Date().toISOString(),
+      end_date: rentalData.end_date || '',
+      km_inicial: rentalData.km_inicial || 0,
+      km_final: rentalData.km_final || 0,
+      deposit_value: rentalData.deposit_value || 0,
+      observations: rentalData.observations || '',
+      contract_number: `CONT-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    };
+
+    const doc = PDFService.generateRentalContract(contractData);
+    const pdfBlob = doc.output('blob');
+    const fileName = `contrato_${contractData.contract_number}.pdf`;
+
+    return { pdfBlob, fileName, contractNumber: contractData.contract_number };
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -206,199 +268,266 @@ export const DigitalSignature: React.FC<DigitalSignatureProps> = ({
           <h3 className="text-lg font-semibold">Assinatura Eletrônica</h3>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Send className="w-4 h-4" />
-              Nova Solicitação
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Criar Solicitação de Assinatura</DialogTitle>
-            </DialogHeader>
-            
-            <div className="space-y-6">
-              {/* Informações do Documento */}
-              <div className="space-y-2">
-                <h4 className="font-medium">Documento</h4>
-                <p className="text-sm text-gray-600">
-                  Contrato de Locação - {rentalData?.client_name}
-                </p>
-              </div>
+        {/* Tabs */}
+        <div className="flex bg-gray-100 rounded-lg p-1">
+          <Button
+            variant={activeTab === 'besign' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('besign')}
+            className="text-sm"
+          >
+            BeSign v2
+          </Button>
+          <Button
+            variant={activeTab === 'legacy' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('legacy')}
+            className="text-sm"
+          >
+            Sistema Legacy
+          </Button>
+        </div>
+      </div>
 
-              {/* Signatários */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">Signatários</h4>
-                  <Button variant="outline" size="sm" onClick={addSigner}>
-                    <Users className="w-4 h-4 mr-2" />
-                    Adicionar
-                  </Button>
-                </div>
+      {/* BeSign v2 Tab */}
+      {activeTab === 'besign' && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">BeSign v2 - Assinatura Eletrônica</CardTitle>
+              <CardDescription>
+                Sistema integrado com BeSign v2 API para assinatura eletrônica de documentos
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BeSignSignature
+                documentName={`Contrato de Locação - ${rentalData?.client_name || 'Cliente'}`}
+                contractNumber={`CONT-${Date.now()}`}
+                rentalId={rentalData?.id}
+                onSignatureRequest={(request) => {
+                  toast({
+                    title: "Documento Enviado",
+                    description: "Documento enviado para assinatura via BeSign!",
+                  });
+                  if (onSignatureRequested) {
+                    onSignatureRequested(request);
+                  }
+                }}
+              />
+            </CardContent>
+          </Card>
+
+          <BeSignDocumentManager
+            rentalId={rentalData?.id}
+            onDocumentUpdate={(document) => {
+              toast({
+                title: "Documento Atualizado",
+                description: `Status do documento "${document.nome}" foi alterado`,
+              });
+            }}
+          />
+        </div>
+      )}
+
+      {/* Legacy Tab */}
+      {activeTab === 'legacy' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center gap-2">
+                  <Send className="w-4 h-4" />
+                  Nova Solicitação (Legacy)
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Criar Solicitação de Assinatura</DialogTitle>
+                </DialogHeader>
                 
-                {signers.map((signer, index) => (
-                  <Card key={index} className="p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor={`name-${index}`}>Nome</Label>
-                        <Input
-                          id={`name-${index}`}
-                          value={signer.name}
-                          onChange={(e) => updateSigner(index, 'name', e.target.value)}
-                          placeholder="Nome completo"
-                        />
+                <div className="space-y-6">
+                  {/* Informações do Documento */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Documento</h4>
+                    <p className="text-sm text-gray-600">
+                      Contrato de Locação - {rentalData?.client_name}
+                    </p>
+                  </div>
+
+                  {/* Signatários */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Signatários</h4>
+                      <Button variant="outline" size="sm" onClick={addSigner}>
+                        <Users className="w-4 h-4 mr-2" />
+                        Adicionar
+                      </Button>
+                    </div>
+                    
+                    {signers.map((signer, index) => (
+                      <Card key={index} className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`name-${index}`}>Nome</Label>
+                            <Input
+                              id={`name-${index}`}
+                              value={signer.name}
+                              onChange={(e) => updateSigner(index, 'name', e.target.value)}
+                              placeholder="Nome completo"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor={`email-${index}`}>Email</Label>
+                            <Input
+                              id={`email-${index}`}
+                              type="email"
+                              value={signer.email}
+                              onChange={(e) => updateSigner(index, 'email', e.target.value)}
+                              placeholder="email@exemplo.com"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor={`cpf-${index}`}>CPF</Label>
+                            <Input
+                              id={`cpf-${index}`}
+                              value={signer.cpf}
+                              onChange={(e) => updateSigner(index, 'cpf', e.target.value)}
+                              placeholder="000.000.000-00"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor={`phone-${index}`}>Telefone</Label>
+                            <Input
+                              id={`phone-${index}`}
+                              value={signer.phone}
+                              onChange={(e) => updateSigner(index, 'phone', e.target.value)}
+                              placeholder="(11) 99999-9999"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor={`role-${index}`}>Função</Label>
+                            <select
+                              id={`role-${index}`}
+                              value={signer.role}
+                              onChange={(e) => updateSigner(index, 'role', e.target.value as any)}
+                              className="w-full p-2 border rounded-md"
+                            >
+                              <option value="client">Cliente</option>
+                              <option value="franchisee">Franqueado</option>
+                              <option value="witness">Testemunha</option>
+                            </select>
+                          </div>
+                          
+                          <div className="flex items-end">
+                            {signers.length > 1 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeSigner(index)}
+                                className="text-red-600"
+                              >
+                                Remover
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleCreateSignatureRequest}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Criando...' : 'Enviar para Assinatura'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Lista de Solicitações Legacy */}
+          <div className="space-y-3">
+            {signatureRequests.length === 0 ? (
+              <Card>
+                <CardContent className="p-6 text-center">
+                  <FileText className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-600">Nenhuma solicitação de assinatura encontrada</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Crie uma nova solicitação para enviar o contrato para assinatura
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              signatureRequests.map((request) => (
+                <Card key={request.id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">{request.document_name}</CardTitle>
+                      {getStatusBadge(request.status)}
+                    </div>
+                    <CardDescription>
+                      Criado em {new Date(request.created_at).toLocaleDateString('pt-BR')}
+                      {request.expires_at && (
+                        <> • Expira em {new Date(request.expires_at).toLocaleDateString('pt-BR')}</>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div>
+                        <h5 className="font-medium mb-2">Signatários:</h5>
+                        <div className="space-y-2">
+                          {request.signers.map((signer, index) => (
+                            <div key={index} className="flex items-center gap-3 text-sm">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <span className="font-medium">{signer.name}</span>
+                              <span className="text-gray-600">({getRoleLabel(signer.role)})</span>
+                              <Mail className="w-4 h-4 text-gray-400" />
+                              <span className="text-gray-600">{signer.email}</span>
+                              {signer.signed_at && (
+                                <Badge variant="default" className="text-xs">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Assinado
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       
-                      <div className="space-y-2">
-                        <Label htmlFor={`email-${index}`}>Email</Label>
-                        <Input
-                          id={`email-${index}`}
-                          type="email"
-                          value={signer.email}
-                          onChange={(e) => updateSigner(index, 'email', e.target.value)}
-                          placeholder="email@exemplo.com"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor={`cpf-${index}`}>CPF</Label>
-                        <Input
-                          id={`cpf-${index}`}
-                          value={signer.cpf}
-                          onChange={(e) => updateSigner(index, 'cpf', e.target.value)}
-                          placeholder="000.000.000-00"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor={`phone-${index}`}>Telefone</Label>
-                        <Input
-                          id={`phone-${index}`}
-                          value={signer.phone}
-                          onChange={(e) => updateSigner(index, 'phone', e.target.value)}
-                          placeholder="(11) 99999-9999"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor={`role-${index}`}>Função</Label>
-                        <select
-                          id={`role-${index}`}
-                          value={signer.role}
-                          onChange={(e) => updateSigner(index, 'role', e.target.value as any)}
-                          className="w-full p-2 border rounded-md"
-                        >
-                          <option value="client">Cliente</option>
-                          <option value="franchisee">Franqueado</option>
-                          <option value="witness">Testemunha</option>
-                        </select>
-                      </div>
-                      
-                      <div className="flex items-end">
-                        {signers.length > 1 && (
+                      {request.status === 'pending' && (
+                        <div className="flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => removeSigner(index)}
-                            className="text-red-600"
+                            onClick={() => handleCancelSignatureRequest(request.id)}
                           >
-                            Remover
+                            Cancelar Solicitação
                           </Button>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Ações */}
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleCreateSignatureRequest}
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Criando...' : 'Enviar para Assinatura'}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Lista de Solicitações */}
-      <div className="space-y-3">
-        {signatureRequests.length === 0 ? (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <FileText className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-600">Nenhuma solicitação de assinatura encontrada</p>
-              <p className="text-sm text-gray-500 mt-2">
-                Crie uma nova solicitação para enviar o contrato para assinatura
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          signatureRequests.map((request) => (
-            <Card key={request.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{request.document_name}</CardTitle>
-                  {getStatusBadge(request.status)}
-                </div>
-                <CardDescription>
-                  Criado em {new Date(request.created_at).toLocaleDateString('pt-BR')}
-                  {request.expires_at && (
-                    <> • Expira em {new Date(request.expires_at).toLocaleDateString('pt-BR')}</>
-                  )}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div>
-                    <h5 className="font-medium mb-2">Signatários:</h5>
-                    <div className="space-y-2">
-                      {request.signers.map((signer, index) => (
-                        <div key={index} className="flex items-center gap-3 text-sm">
-                          <User className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium">{signer.name}</span>
-                          <span className="text-gray-600">({getRoleLabel(signer.role)})</span>
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-600">{signer.email}</span>
-                          {signer.signed_at && (
-                            <Badge variant="default" className="text-xs">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Assinado
-                            </Badge>
-                          )}
                         </div>
-                      ))}
+                      )}
                     </div>
-                  </div>
-                  
-                  {request.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleCancelSignatureRequest(request.id)}
-                      >
-                        Cancelar Solicitação
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

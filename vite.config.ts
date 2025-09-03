@@ -8,6 +8,16 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      '/api/besign': {
+        target: 'https://app-sign.efcaz.com.br/efcaz-clm/api',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/besign/, ''),
+        headers: {
+          'Origin': 'https://app-sign.efcaz.com.br'
+        }
+      }
+    }
   },
   plugins: [
     react(),
