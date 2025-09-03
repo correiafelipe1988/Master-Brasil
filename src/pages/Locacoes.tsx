@@ -14,6 +14,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { TemplateBasedContract } from '@/components/TemplateBasedContract';
 import { ResponsibilityTermGenerator } from '@/components/ResponsibilityTermGenerator';
 import { TariffGenerator } from '@/components/contracts/TariffGenerator';
+import { DepositReceiptGenerator } from '@/components/contracts/DepositReceiptGenerator';
+import { VehicleMonitoringDeclarationGenerator } from '@/components/contracts/VehicleMonitoringDeclarationGenerator';
+import { PowerOfAttorneyGenerator } from '@/components/contracts/PowerOfAttorneyGenerator';
 import { EmailService } from '@/services/emailService';
 
 interface Rental {
@@ -1784,6 +1787,105 @@ export default function Locacoes() {
                   onTariffGenerated={(tariffUrl) => {
                     console.log('Anexo IV gerado:', tariffUrl);
                     toast.success('Anexo IV gerado com sucesso!');
+                  }}
+                />
+              </div>
+
+              {/* Anexo VI - Recebimento de Caução */}
+              <div className="border-t pt-6">
+                <DepositReceiptGenerator
+                  depositData={{
+                    client_name: selectedRental.client_name,
+                    client_cpf: selectedRental.client_document,
+                    client_cnh: '', // Precisa ser adicionado ao modelo de dados se necessário
+                    client_address: selectedRental.client_address_street || '',
+                    client_neighborhood: '',
+                    client_city: selectedRental.client_address_city || 'Salvador',
+                    client_state: selectedRental.client_address_state || 'BA',
+                    client_number: selectedRental.client_address_number || '',
+                    client_cep: selectedRental.client_address_zip_code || '',
+                    client_email: selectedRental.client_email || '',
+                    client_phone: selectedRental.client_phone || '',
+                    deposit_value: 700.00, // Valor padrão da caução
+                    franchisee_name: franchisees.find(f => f.id === selectedRental.franchisee_id)?.fantasy_name || '',
+                    franchisee_cnpj: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cnpj || '',
+                    franchisee_address: franchisees.find(f => f.id === selectedRental.franchisee_id)?.endereco || '',
+                    franchisee_neighborhood: franchisees.find(f => f.id === selectedRental.franchisee_id)?.bairro || '',
+                    franchisee_city: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cidade || 'Salvador',
+                    franchisee_state: franchisees.find(f => f.id === selectedRental.franchisee_id)?.estado || 'BA',
+                    franchisee_cep: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cep || '',
+                    contract_city: selectedRental.client_address_city || 'Salvador',
+                    contract_date: new Date().toLocaleDateString('pt-BR')
+                  }}
+                  cityId={appUser?.city_id || ''}
+                  rentalId={selectedRental.id}
+                  onReceiptGenerated={(receiptUrl) => {
+                    console.log('Anexo VI gerado:', receiptUrl);
+                    toast.success('Anexo VI gerado com sucesso!');
+                  }}
+                />
+              </div>
+
+              {/* Anexo VII - Declaração de Conhecimento de Monitoramento do Veículo */}
+              <div className="border-t pt-6">
+                <VehicleMonitoringDeclarationGenerator
+                  vehicleMonitoringData={{
+                    client_name: selectedRental.client_name,
+                    client_cpf: selectedRental.client_document,
+                    client_cnh: '', // Precisa ser adicionado ao modelo de dados se necessário
+                    client_address: selectedRental.client_address_street || '',
+                    client_neighborhood: selectedRental.client_address_state || '', // Usando state como neighborhood temporariamente
+                    client_city: selectedRental.client_address_city || 'Maceió',
+                    client_state: selectedRental.client_address_state || 'AL',
+                    client_number: selectedRental.client_address_number || '',
+                    client_cep: selectedRental.client_address_zip_code || '',
+                    client_email: selectedRental.client_email || '',
+                    client_phone: selectedRental.client_phone || '',
+                    contract_city: selectedRental.client_address_city || 'Maceió',
+                    contract_date: new Date().toLocaleDateString('pt-BR')
+                  }}
+                  cityId={appUser?.city_id || ''}
+                  rentalId={selectedRental.id}
+                  onDeclarationGenerated={(declarationUrl) => {
+                    console.log('Anexo VII gerado:', declarationUrl);
+                    toast.success('Anexo VII gerado com sucesso!');
+                  }}
+                />
+              </div>
+
+              {/* Anexo III - Procuração */}
+              <div className="border-t pt-6">
+                <PowerOfAttorneyGenerator
+                  powerOfAttorneyData={{
+                    client_name: selectedRental.client_name,
+                    client_cpf: selectedRental.client_document,
+                    client_cnh: '', // Precisa ser adicionado ao modelo de dados se necessário
+                    client_profession: 'profissional', // Valor padrão
+                    client_marital_status: 'solteiro(a)', // Valor padrão
+                    client_address: selectedRental.client_address_street || '',
+                    client_neighborhood: selectedRental.client_address_state || '', // Usando state como neighborhood temporariamente
+                    client_city: selectedRental.client_address_city || 'Maceió',
+                    client_state: selectedRental.client_address_state || 'AL',
+                    client_number: selectedRental.client_address_number || '',
+                    client_cep: selectedRental.client_address_zip_code || '',
+                    client_email: selectedRental.client_email || '',
+                    client_phone: selectedRental.client_phone || '',
+                    franchisee_name: franchisees.find(f => f.id === selectedRental.franchisee_id)?.fantasy_name || '',
+                    franchisee_cnpj: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cnpj || '',
+                    franchisee_address: franchisees.find(f => f.id === selectedRental.franchisee_id)?.endereco || '',
+                    franchisee_neighborhood: franchisees.find(f => f.id === selectedRental.franchisee_id)?.bairro || '',
+                    franchisee_city: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cidade || '',
+                    franchisee_state: franchisees.find(f => f.id === selectedRental.franchisee_id)?.estado || '',
+                    franchisee_number: franchisees.find(f => f.id === selectedRental.franchisee_id)?.numero || '',
+                    franchisee_cep: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cep || '',
+                    contract_city: selectedRental.client_address_city || '',
+                    contract_date: new Date().toLocaleDateString('pt-BR')
+                  }}
+                  cityId={appUser?.city_id || ''}
+                  rentalId={selectedRental.id}
+                  onPowerOfAttorneyGenerated={(powerOfAttorneyUrl) => {
+                    console.log('Anexo III gerado:', powerOfAttorneyUrl);
+                    toast.success('Anexo III gerado com sucesso!');
                   }}
                 />
               </div>

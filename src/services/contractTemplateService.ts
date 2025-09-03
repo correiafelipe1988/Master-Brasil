@@ -395,10 +395,19 @@ export class ContractTemplateService {
 
       if (error) throw error;
 
-      // Filtrar por nome do template
-      const filtered = (data || []).filter(contract =>
-        contract.template?.name?.includes(templateName)
-      );
+      // Filtrar por nome exato do template (evitar mistura entre Anexo V, VI, VII)
+      const filtered = (data || []).filter(contract => {
+        const templateNameLower = contract.template?.name?.toLowerCase();
+        const searchNameLower = templateName.toLowerCase();
+        
+        // Verificar correspondência exata ou que comece com o nome procurado seguido de espaço/hífen
+        return templateNameLower === searchNameLower ||
+               templateNameLower?.startsWith(`${searchNameLower} -`) ||
+               (searchNameLower === 'anexo v' && templateNameLower === 'anexo v - termo de responsabilidade civil') ||
+               (searchNameLower === 'anexo vi' && templateNameLower === 'anexo vi - recebimento de caução') ||
+               (searchNameLower === 'anexo vii' && templateNameLower === 'anexo vii - declaração de conhecimento de monitoramento do veículo') ||
+               (searchNameLower === 'anexo iii' && templateNameLower === 'anexo iii - procuração');
+      });
 
       return filtered;
     } catch (error) {
@@ -474,6 +483,81 @@ export class ContractTemplateService {
       if (error) throw error;
     } catch (error) {
       console.error('Erro ao excluir contrato:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cria um novo template de contrato
+   */
+  static async createTemplate(templateData: {
+    contract_type_id: string;
+    name: string;
+    version: string;
+    title: string;
+    content: Record<string, any>;
+    variables: string[];
+    is_active?: boolean;
+    is_default?: boolean;
+  }): Promise<ContractTemplate> {
+    try {
+      const { data, error } = await supabase
+        .from('contract_templates')
+        .insert({
+          contract_type_id: templateData.contract_type_id,
+          name: templateData.name,
+          version: templateData.version,
+          title: templateData.title,
+          content: templateData.content,
+          variables: templateData.variables,
+          is_active: templateData.is_active ?? true,
+          is_default: templateData.is_default ?? false
+        })
+        .select(`
+          *,
+          contract_type:contract_types(*)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Erro ao criar template:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cria uma cláusula para um template
+   */
+  static async createClause(clauseData: {
+    template_id: string;
+    clause_number: string;
+    title: string;
+    content: string;
+    order_index: number;
+    is_required?: boolean;
+    variables: string[];
+  }): Promise<ContractClause> {
+    try {
+      const { data, error } = await supabase
+        .from('contract_clauses')
+        .insert({
+          template_id: clauseData.template_id,
+          clause_number: clauseData.clause_number,
+          title: clauseData.title,
+          content: clauseData.content,
+          order_index: clauseData.order_index,
+          is_required: clauseData.is_required ?? true,
+          variables: clauseData.variables
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Erro ao criar cláusula:', error);
       throw error;
     }
   }
