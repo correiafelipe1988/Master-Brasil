@@ -271,36 +271,29 @@ export class DigitalSignatureService {
 
       console.log('📤 [BeSign] Payload:', JSON.stringify(requestPayload, null, 2));
 
-      // Usar proxy em desenvolvimento para evitar CORS
-      const apiUrl = import.meta.env.DEV 
-        ? '/api/besign/public/v2/documentos'
-        : `${this.API_BASE_URL}/public/v2/documentos`;
+      // Usar BeSignService diretamente para criar documento
+      console.log('📤 [BeSign] Criando documento via BeSignService...');
       
-      console.log('🔗 [BeSign] URL da requisição:', apiUrl);
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'API-KEY': this.API_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestPayload)
+      const documento = await BeSignService.criarDocumento({
+        ...requestPayload,
+        signatarios: requestPayload.signatarios.map(sig => ({
+          ...sig,
+          dados_assinatura: {
+            ...sig.dados_assinatura,
+            tipo_assinatura: 'Eletronica' as const,
+            tipo_documento: 'CPF' as const,
+            opcional: {
+              modalidade_assinatura: 'REMOTA' as const
+            }
+          }
+        }))
       });
 
-      console.log('📥 [BeSign] Response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ [BeSign] API Error:', errorText);
-        throw new Error(`BeSign API Error: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log('✅ [BeSign] Success response:', result);
+      console.log('✅ [BeSign] Success response:', documento);
 
       return {
-        id: result.identificador || `besign_${Date.now()}`,
-        signing_url: `${this.API_BASE_URL}/public/assinatura/${result.identificador || 'unknown'}`
+        id: documento.identificador || `besign_${Date.now()}`,
+        signing_url: `${this.API_BASE_URL}/public/assinatura/${documento.identificador || 'unknown'}`
       };
 
     } catch (error) {
@@ -382,77 +375,55 @@ export class DigitalSignatureService {
    */
   private static async getDefaultPastaId(): Promise<string> {
     try {
-      // Primeiro tenta buscar pastas existentes
-      const apiUrl = import.meta.env.DEV 
-        ? '/api/besign/public/v2/pastas?page=0&pageSize=1'
-        : `${this.API_BASE_URL}/public/v2/pastas?page=0&pageSize=1`;
-
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'API-KEY': this.API_KEY,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.content && result.content.length > 0) {
-          console.log('📁 [BeSign] Usando pasta existente:', result.content[0].identificador);
-          return result.content[0].identificador;
+      console.log('📁 [BeSign] Buscando pastas da organização...');
+      
+      // Usar o serviço BeSign diretamente para buscar pastas
+      const pastas = await BeSignService.buscarPastas(0, 1);
+      
+      // Verificar ambos os formatos de resposta (content e items)
+      const pastasList = pastas.content || (pastas as any).items || [];
+      if (pastasList && pastasList.length > 0) {
+        const pasta = pastasList[0];
+        const pastaId = pasta.identificador || pasta.identificador_pasta;
+        if (pastaId) {
+          console.log('📁 [BeSign] Usando pasta existente:', pastaId);
+          return pastaId;
         }
       }
 
       // Se não encontrou pastas, cria uma nova
-      const createUrl = import.meta.env.DEV 
-        ? '/api/besign/public/v2/pastas'
-        : `${this.API_BASE_URL}/public/v2/pastas`;
-
-      const createResponse = await fetch(createUrl, {
-        method: 'POST',
-        headers: {
-          'API-KEY': this.API_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          nome: 'Contratos CRM'
-        })
-      });
-
-      if (createResponse.ok) {
-        const newPasta = await createResponse.json();
-        console.log('📁 [BeSign] Pasta criada:', newPasta.identificador);
-        return newPasta.identificador;
+      console.log('📁 [BeSign] Nenhuma pasta encontrada, criando nova...');
+      const novaPasta = await BeSignService.criarPasta({ nome: 'Contratos CRM' });
+      
+      if (novaPasta.identificador || (novaPasta as any).identificador_pasta) {
+        const pastaId = novaPasta.identificador || (novaPasta as any).identificador_pasta;
+        console.log('📁 [BeSign] Pasta criada:', pastaId);
+        return pastaId;
       }
 
     } catch (error) {
       console.error('❌ [BeSign] Erro ao gerenciar pastas:', error);
     }
 
-    // Fallback: usar um UUID válido genérico (não recomendado para produção)
-    console.warn('⚠️ [BeSign] Usando UUID genérico para pasta');
-    return '00000000-0000-0000-0000-000000000000';
+    // Fallback: tentar criar com nome único se tudo falhar
+    console.warn('⚠️ [BeSign] Tentando criar pasta com nome único como fallback...');
+    try {
+      const fallbackPasta = await BeSignService.criarPasta({ 
+        nome: `CRM_${Date.now()}` 
+      });
+      if (fallbackPasta.identificador || (fallbackPasta as any).identificador_pasta) {
+        const pastaId = fallbackPasta.identificador || (fallbackPasta as any).identificador_pasta;
+        console.log('📁 [BeSign] Pasta fallback criada:', pastaId);
+        return pastaId;
+      }
+    } catch (fallbackError) {
+      console.error('❌ [BeSign] Erro no fallback de pasta:', fallbackError);
+    }
+
+    // Último recurso: gerar erro explicativo
+    throw new Error('Não foi possível obter ou criar uma pasta válida na organização BeSign. Verifique as permissões da API key.');
   }
 
-  /**
-   * Obtém ou cria uma pasta no BeSign (método original mantido)
-   */
-  private static async getOrCreatePasta(nomePasta: string): Promise<string> {
-    try {
-      const pastas = await BeSignService.buscarPastas();
-      const pastaExistente = pastas.content.find(p => p.nome === nomePasta);
-      
-      if (pastaExistente?.identificador) {
-        return pastaExistente.identificador;
-      }
-      
-      const novaPasta = await BeSignService.criarPasta({ nome: nomePasta });
-      return novaPasta.identificador || 'default';
-    } catch (error) {
-      console.warn('⚠️ [BeSign] Erro ao gerenciar pasta, usando padrão');
-      return 'default';
-    }
-  }
 
   /**
    * Baixa PDF da URL e converte para base64

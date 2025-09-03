@@ -1771,6 +1771,8 @@ export default function Locacoes() {
                     client_state: selectedRental.client_address_state || 'BA',
                     client_number: selectedRental.client_address_number || '',
                     client_cep: selectedRental.client_address_zip_code || '',
+                    client_email: selectedRental.client_email || '',
+                    client_phone: selectedRental.client_phone || '',
                     motorcycle_model: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || '',
                     motorcycle_brand: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.marca || '',
                     motorcycle_plate: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || '',

@@ -96,7 +96,10 @@ export class BeSignService {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' = 'GET',
     body?: any
   ): Promise<T> {
-    const url = `${this.BASE_URL}/public/v2${endpoint}`;
+    // Usar proxy em desenvolvimento para evitar CORS
+    const url = import.meta.env.DEV 
+      ? `/api/besign/public/v2${endpoint}`
+      : `${this.BASE_URL}/public/v2${endpoint}`;
     
     console.log(`🚀 [BeSign] ${method} ${url}`);
     
