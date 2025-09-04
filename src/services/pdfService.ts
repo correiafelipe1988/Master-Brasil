@@ -117,13 +117,19 @@ export class PDFService {
           yPosition = this.addSimpleDocumentContent(doc, clauses, contractData, yPosition);
         }
       } else {
-        // Layout completo para contratos
-        yPosition = this.addHeader(doc, template.title);
-        yPosition = this.addContractInfo(doc, contractData, yPosition);
-        yPosition = this.addContractParties(doc, contractData, yPosition);
-        yPosition = this.addContractClauses(doc, clauses, contractData, yPosition);
-        this.addSignatures(doc, contractData);
-        this.addFooter(doc);
+        // Verificar se é o template SILVIO ROBERTO completo
+        if (template.name.includes('SILVIO ROBERTO') || template.name.includes('14 PAGINAS') || template.name.includes('14 páginas')) {
+          // Layout direto para SILVIO ROBERTO - apenas cláusulas
+          yPosition = this.addContractClauses(doc, clauses, contractData, yPosition);
+        } else {
+          // Layout completo para outros contratos
+          yPosition = this.addHeader(doc, template.title);
+          yPosition = this.addContractInfo(doc, contractData, yPosition);
+          yPosition = this.addContractParties(doc, contractData, yPosition);
+          yPosition = this.addContractClauses(doc, clauses, contractData, yPosition);
+          this.addSignatures(doc, contractData);
+          this.addFooter(doc);
+        }
       }
 
       return doc;
@@ -213,7 +219,7 @@ export class PDFService {
   }
 
   /**
-   * Adiciona cláusulas do contrato
+   * Adiciona cláusulas do contrato com quebra de página inteligente
    */
   private static addContractClauses(
     doc: jsPDF,
@@ -221,33 +227,161 @@ export class PDFService {
     data: ContractVariableData,
     yPosition: number
   ): number {
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CLÁUSULAS CONTRATUAIS', 20, yPosition);
-    yPosition += 15;
+    // Não adicionar cabeçalho "CLÁUSULAS CONTRATUAIS" para templates do SILVIO ROBERTO
+    // Vamos verificar se alguma cláusula contém "INSTRUMENTO PARTICULAR" (indica SILVIO ROBERTO)
+    const isSilvioRobertoTemplate = clauses.some(clause => 
+      clause.content.includes('INSTRUMENTO PARTICULAR DE CONTRATO DE LOCAÇÃO') ||
+      clause.content.includes('SILVIO ROBERTO') ||
+      (data as any).template_name?.includes('SILVIO ROBERTO') ||
+      (data as any).template_name?.includes('14 PAGINAS') ||
+      (data as any).template_name?.includes('14 páginas')
+    );
+    
+    if (!isSilvioRobertoTemplate) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CLÁUSULAS CONTRATUAIS', 20, yPosition);
+      yPosition += 15;
+    }
 
     clauses.forEach((clause, index) => {
-      // Verificar se precisa de nova página
-      if (yPosition > 250) {
-        doc.addPage();
-        yPosition = 20;
-      }
-
       // Título da cláusula
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text(`CLÁUSULA ${clause.clause_number}ª - ${clause.title}`, 20, yPosition);
-      yPosition += 8;
+      
+      // Verificar se precisa de nova página para o título
+      if (yPosition > 270) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      if (clause.title && clause.title.trim()) {
+        doc.text(`${clause.title}`, 20, yPosition);
+        yPosition += 8;
+      }
 
       // Conteúdo da cláusula com substituição de variáveis
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
 
       const processedContent = ContractTemplateService.replaceVariables(clause.content, data);
-      const splitContent = doc.splitTextToSize(processedContent, 170);
+      
+      // Processar o conteúdo para centralizar títulos específicos
+      yPosition = this.addFormattedTextWithSpecialTitles(doc, processedContent, yPosition);
+      yPosition += 10; // Espaço após cada cláusula
+    });
 
-      doc.text(splitContent, 20, yPosition);
-      yPosition += splitContent.length * 4 + 8;
+    return yPosition;
+  }
+
+  /**
+   * Adiciona texto formatado com títulos especiais centralizados e em negrito
+   */
+  private static addFormattedTextWithSpecialTitles(
+    doc: jsPDF,
+    processedContent: string,
+    initialYPosition: number
+  ): number {
+    let yPosition = initialYPosition;
+    const pageHeight = doc.internal.pageSize.height;
+    const pageWidth = doc.internal.pageSize.width;
+    const lineHeight = 4;
+    const marginBottom = 20;
+    const maxY = pageHeight - marginBottom;
+
+    const lines = processedContent.split('\n');
+    
+    lines.forEach((line) => {
+      // Verificar se precisa de nova página
+      if (yPosition + lineHeight > maxY) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      // Títulos especiais para centralizar e colocar em negrito
+      const shouldCenterAndBold = line.includes('INSTRUMENTO PARTICULAR DE CONTRATO') ||
+                                 line.includes('ANEXO I- ABERTURA DE CONTRATO') ||
+                                 line.trim() === 'DADOS DO CONTRATO' ||
+                                 line.trim() === 'DADOS DA LOCADORA' ||
+                                 line.trim() === 'DADOS DO LOCATÁRIO' ||
+                                 line.trim() === 'DADOS DA MOTOCICLETA LOCADA' ||
+                                 line.trim() === 'DADOS DA LOCAÇÃO';
+
+      if (shouldCenterAndBold) {
+        // Centralizar e negrito
+        doc.setFont('helvetica', 'bold');
+        
+        // Tamanho de fonte e quebra de linha para títulos longos
+        if (line.includes('INSTRUMENTO PARTICULAR DE CONTRATO')) {
+          doc.setFontSize(10); // Tamanho menor para o título longo
+          // Verificar se ainda não cabe e quebrar em múltiplas linhas
+          const maxWidth = pageWidth - 40; // Margem de 20px de cada lado
+          const splitTitle = doc.splitTextToSize(line, maxWidth);
+          
+          splitTitle.forEach((titleLine: string, titleIndex: number) => {
+            if (yPosition + lineHeight > maxY) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            const titleWidth = doc.getTextWidth(titleLine);
+            const titleX = (pageWidth - titleWidth) / 2;
+            doc.text(titleLine, titleX, yPosition);
+            yPosition += lineHeight;
+          });
+          yPosition += 2; // Espaço extra após título
+        } else {
+          doc.setFontSize(12); // Tamanho normal para outros títulos
+          const textWidth = doc.getTextWidth(line);
+          const textX = (pageWidth - textWidth) / 2;
+          doc.text(line, textX, yPosition);
+          yPosition += lineHeight + 2; // Espaço extra após títulos
+        }
+      } else if (line.trim()) {
+        // Texto normal
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        const splitContent = doc.splitTextToSize(line, 170);
+        
+        splitContent.forEach((splitLine: string) => {
+          if (yPosition + lineHeight > maxY) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          doc.text(splitLine, 20, yPosition);
+          yPosition += lineHeight;
+        });
+      } else {
+        // Linha vazia - adicionar espaço
+        yPosition += lineHeight;
+      }
+    });
+
+    return yPosition;
+  }
+
+  /**
+   * Adiciona texto com quebra de página automática
+   */
+  private static addTextWithPageBreaks(
+    doc: jsPDF,
+    textLines: string[],
+    initialYPosition: number
+  ): number {
+    let yPosition = initialYPosition;
+    const pageHeight = doc.internal.pageSize.height;
+    const lineHeight = 4;
+    const marginBottom = 20;
+    const maxY = pageHeight - marginBottom;
+
+    textLines.forEach((line) => {
+      // Verificar se precisa de nova página
+      if (yPosition + lineHeight > maxY) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.text(line, 20, yPosition);
+      yPosition += lineHeight;
     });
 
     return yPosition;
@@ -379,15 +513,24 @@ export class PDFService {
         yPosition = 20;
       }
 
+      // Título da cláusula se houver
+      if (clause.title) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text(clause.title, 20, yPosition);
+        yPosition += 8;
+      }
+
       // Conteúdo da cláusula com substituição de variáveis
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
+      doc.setFontSize(10);
 
       const processedContent = ContractTemplateService.replaceVariables(clause.content, data);
       const splitContent = doc.splitTextToSize(processedContent, 170);
 
-      doc.text(splitContent, 20, yPosition);
-      yPosition += splitContent.length * 5 + 15;
+      // Usar a função de quebra de página inteligente
+      yPosition = this.addTextWithPageBreaks(doc, splitContent, yPosition);
+      yPosition += 10; // Espaço após cada cláusula
     });
 
     return yPosition;

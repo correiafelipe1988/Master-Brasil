@@ -11,7 +11,7 @@ import { Car, CheckCircle, Clock, Plus, Eye, Trash2, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { TemplateBasedContract } from '@/components/TemplateBasedContract';
+import { UpdatedMainRentalContractGenerator } from '@/components/contracts/UpdatedMainRentalContractGenerator';
 import { ResponsibilityTermGenerator } from '@/components/ResponsibilityTermGenerator';
 import { TariffGenerator } from '@/components/contracts/TariffGenerator';
 import { DepositReceiptGenerator } from '@/components/contracts/DepositReceiptGenerator';
@@ -1705,33 +1705,57 @@ export default function Locacoes() {
                 </div>
               )}
 
-              {/* Sistema de Contratos Baseado em Templates */}
+              {/* Contrato Principal de Locação */}
               <div className="border-t pt-6">
-                <TemplateBasedContract
-                  rentalData={{
-                    ...selectedRental,
-                    motorcycle_model: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || '',
-                    motorcycle_plate: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || '',
-                    motorcycle_year: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.ano?.toString() || '',
-                    motorcycle_color: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.cor || '',
-                    motorcycle_chassi: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.chassi || '',
-                    motorcycle_renavam: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.renavam || '',
+                <UpdatedMainRentalContractGenerator
+                  contractData={{
+                    contract_number: selectedRental.id,
+                    attendant_name: 'Atendente Sistema',
+                    monthly_km_limit: '6.000',
+                    excess_km_rate: 'R$0,39',
+                    start_date: new Date(selectedRental.start_date).toLocaleDateString('pt-BR'),
+                    delivery_location: franchisees.find(f => f.id === selectedRental.franchisee_id)?.endereco || '',
+                    payment_frequency: 'Semanal',
+                    end_date: selectedRental.end_date ? new Date(selectedRental.end_date).toLocaleDateString('pt-BR') : '',
+                    return_location: franchisees.find(f => f.id === selectedRental.franchisee_id)?.endereco || '',
+                    daily_rate: `R$${selectedRental.daily_rate?.toFixed(2) || '0,00'}`,
                     franchisee_name: franchisees.find(f => f.id === selectedRental.franchisee_id)?.fantasy_name || '',
                     franchisee_cnpj: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cnpj || '',
                     franchisee_address: franchisees.find(f => f.id === selectedRental.franchisee_id)?.endereco || '',
-                    franchisee_phone: franchisees.find(f => f.id === selectedRental.franchisee_id)?.whatsapp_01 || '',
-                    plan_name: plans.find(p => p.id === selectedRental.plan_id)?.name || '',
-                    client_cpf: selectedRental.client_document, // Usando client_cpf para componente
-                    plan_price: selectedRental.daily_rate * selectedRental.total_days
+                    franchisee_city: franchisees.find(f => f.id === selectedRental.franchisee_id)?.cidade || '',
+                    franchisee_state: franchisees.find(f => f.id === selectedRental.franchisee_id)?.estado || '',
+                    client_name: selectedRental.client_name,
+                    client_address_street: selectedRental.client_address_street || '',
+                    client_address_number: selectedRental.client_address_number || '',
+                    client_address_city: selectedRental.client_address_city || '',
+                    client_address_zip_code: selectedRental.client_address_zip_code || '',
+                    client_address_state: selectedRental.client_address_state || '',
+                    client_phone: selectedRental.client_phone || '',
+                    client_phone_2: '', // Campo adicional
+                    client_cpf: selectedRental.client_document,
+                    client_cnh: '', // Precisa ser adicionado ao modelo se necessário
+                    client_cnh_category: 'AB', // Valor padrão
+                    client_email: selectedRental.client_email || '',
+                    motorcycle_plate: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.placa || '',
+                    motorcycle_chassi: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.chassi || '',
+                    motorcycle_km: '0', // Valor padrão - pode ser adicionado ao modelo
+                    motorcycle_brand: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.marca || '',
+                    motorcycle_renavam: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.renavam || '',
+                    fuel_level: 'Reserva', // Valor padrão
+                    motorcycle_model: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.modelo || '',
+                    motorcycle_year: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.ano?.toString() || '',
+                    motorcycle_color: motorcycles.find(m => m.id === selectedRental.motorcycle_id)?.cor || '',
+                    total_days: selectedRental.total_days?.toString() || '0',
+                    total_amount: `R$${(selectedRental.daily_rate * selectedRental.total_days)?.toFixed(2) || '0,00'}`,
+                    contract_city: selectedRental.client_address_city || '',
+                    contract_date: new Date().toLocaleDateString('pt-BR'),
+                    contract_state: selectedRental.client_address_state || '',
                   }}
                   cityId={appUser?.city_id || ''}
-                  onContractGenerated={(contract) => {
-                    console.log('Contrato gerado:', contract);
-                    toast.success('Contrato gerado com sucesso!');
-                  }}
-                  onSignatureRequested={(signatureRequest) => {
-                    console.log('Assinatura solicitada:', signatureRequest);
-                    toast.success('Contrato enviado para assinatura!');
+                  rentalId={selectedRental.id}
+                  onContractGenerated={(contractUrl) => {
+                    console.log('Contrato gerado:', contractUrl);
+                    toast.success('Contrato Principal gerado com sucesso!');
                   }}
                 />
               </div>

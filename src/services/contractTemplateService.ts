@@ -406,7 +406,10 @@ export class ContractTemplateService {
                (searchNameLower === 'anexo v' && templateNameLower === 'anexo v - termo de responsabilidade civil') ||
                (searchNameLower === 'anexo vi' && templateNameLower === 'anexo vi - recebimento de caução') ||
                (searchNameLower === 'anexo vii' && templateNameLower === 'anexo vii - declaração de conhecimento de monitoramento do veículo') ||
-               (searchNameLower === 'anexo iii' && templateNameLower === 'anexo iii - procuração');
+               (searchNameLower === 'anexo iii' && templateNameLower === 'anexo iii - procuração') ||
+               (searchNameLower === 'contrato principal de locação' && templateNameLower === 'contrato principal de locação') ||
+               (searchNameLower === 'contrato principal' && templateNameLower === 'contrato principal de locação') ||
+               (searchNameLower === 'contrato principal de locação - silvio roberto' && templateNameLower?.startsWith('contrato principal de locação - silvio roberto'));
       });
 
       return filtered;
