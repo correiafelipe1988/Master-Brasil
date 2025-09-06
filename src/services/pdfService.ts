@@ -266,8 +266,19 @@ export class PDFService {
 
       const processedContent = ContractTemplateService.replaceVariables(clause.content, data);
       
-      // Processar o conteúdo para centralizar títulos específicos
-      yPosition = this.addFormattedTextWithSpecialTitles(doc, processedContent, yPosition);
+      // Verificar se é template SILVIO ROBERTO para usar formatação especial
+      const isSilvioRobertoTemplate = clauses.some(clause => 
+        clause.content.includes('INSTRUMENTO PARTICULAR DE CONTRATO DE LOCAÇÃO')
+      );
+      
+      if (isSilvioRobertoTemplate) {
+        // Formatação especial para SILVIO ROBERTO
+        yPosition = this.addFormattedTextWithSpecialTitles(doc, processedContent, yPosition);
+      } else {
+        // Formatação normal para outros documentos
+        const splitContent = doc.splitTextToSize(processedContent, 170);
+        yPosition = this.addTextWithPageBreaks(doc, splitContent, yPosition);
+      }
       yPosition += 10; // Espaço após cada cláusula
     });
 

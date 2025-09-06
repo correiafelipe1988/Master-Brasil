@@ -254,17 +254,23 @@ export class ContractTemplateService {
       const processedData = this.processContractData(contractData);
 
       // Criar registro do contrato gerado
+      const insertData: any = {
+        template_id: templateId,
+        contract_number: contractNumber,
+        contract_data: processedData,
+        status: 'draft',
+        city_id: cityId,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 dias
+      };
+
+      // Só incluir rental_id se for válido
+      if (rentalId && rentalId.trim() !== '') {
+        insertData.rental_id = rentalId;
+      }
+
       const { data, error } = await supabase
         .from('generated_contracts')
-        .insert({
-          template_id: templateId,
-          rental_id: rentalId,
-          contract_number: contractNumber,
-          contract_data: processedData,
-          status: 'draft',
-          city_id: cityId,
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 dias
-        })
+        .insert(insertData)
         .select(`
           *,
           template:contract_templates(*)

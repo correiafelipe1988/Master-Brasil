@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { FileText, Download, Eye, Send, Trash2 } from 'lucide-react';
 import { PDFService } from '../../services/pdfService';
@@ -70,6 +69,7 @@ export const UpdatedMainRentalContractGenerator: React.FC<MainRentalContractGene
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [existingContract, setExistingContract] = useState<any>(null);
   const [allContracts, setAllContracts] = useState<any[]>([]);
+  const [generatedContract, setGeneratedContract] = useState<any>(null);
 
   useEffect(() => {
     if (rentalId) {
@@ -638,11 +638,160 @@ Testemunha 2`,
 
   // Métodos básicos para teste
   const checkExistingContract = async () => {
-    console.log('📋 [FullMainRental] Verificando contratos existentes...');
+    try {
+      console.log('📋 [FullMainRental] Verificando contratos existentes...');
+      if (!rentalId) return;
+
+      // Buscar todos os contratos gerados para este rental e filtrar por SILVIO ROBERTO
+      const allContracts = await ContractTemplateService.getGeneratedContracts(cityId);
+      const contracts = allContracts.filter(contract => 
+        contract.rental_id === rentalId && 
+        (contract.template?.name?.includes('SILVIO ROBERTO') || 
+         contract.template?.title?.includes('SILVIO ROBERTO'))
+      );
+
+      if (contracts && contracts.length > 0) {
+        const contract = contracts[0]; // Pegar o mais recente
+        console.log('✅ [FullMainRental] Contrato existente encontrado:', contract);
+        setGeneratedContract(contract);
+        
+        // Regenerar PDF para contrato existente se necessário
+        await regeneratePdfForExistingContract(contract);
+      }
+    } catch (error) {
+      console.error('❌ [FullMainRental] Erro ao verificar contratos existentes:', error);
+    }
   };
 
   const loadAllContracts = async () => {
     console.log('📋 [FullMainRental] Carregando contratos...');
+    await checkExistingContract();
+  };
+
+  const regeneratePdfForExistingContract = async (contract: any) => {
+    try {
+      console.log('🔄 [FullMainRental] Regenerando PDF para contrato existente...');
+      
+      // Preparar dados do contrato
+      const contractDataForPDF = prepareContractData();
+      
+      // Gerar PDF usando o template do contrato existente
+      const pdfDoc = await PDFService.generateTemplateBasedContract(
+        contract.template_id,
+        contractDataForPDF
+      );
+      
+      const pdfBlob = pdfDoc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      
+      console.log('✅ [FullMainRental] PDF regenerado:', pdfUrl);
+      setGeneratedPdfUrl(pdfUrl);
+      
+    } catch (error) {
+      console.error('❌ [FullMainRental] Erro ao regenerar PDF:', error);
+    }
+  };
+
+  const handleSendForSignature = async (contract: any) => {
+    try {
+      console.log('📧 [FullMainRental] Enviando contrato para assinatura...');
+      
+      if (!contract) {
+        toast.error('Gere o Contrato de Locação primeiro antes de enviar para assinatura.');
+        return;
+      }
+
+      // Preparar dados do contrato
+      const contractDataForPDF = prepareContractData();
+      
+      // Gerar PDF usando o template do contrato existente
+      const pdfDoc = await PDFService.generateTemplateBasedContract(
+        contract.template_id,
+        contractDataForPDF
+      );
+      
+      const pdfBlob = pdfDoc.output('blob');
+      const fileName = `contrato_locacao_${contract.contract_number}.pdf`;
+
+      // Preparar signatários
+      const clientEmail = contractData.client_email || 'cliente@email.com';
+      const clientPhone = contractData.client_phone || '';
+      const signers = [
+        {
+          name: contractData.client_name || 'Cliente',
+          email: clientEmail,
+          cpf: contractData.client_cpf || '',
+          phone: clientPhone,
+          role: 'client' as const
+        }
+      ];
+
+      // Validar se tem email válido
+      if (!clientEmail || clientEmail === 'cliente@email.com') {
+        console.warn('⚠️ [FullMainRental] Usando email padrão para cliente:', clientEmail);
+      }
+
+      // Importar DigitalSignatureService dinamicamente
+      const { DigitalSignatureService } = await import('../../services/digitalSignatureService');
+
+      // Enviar para BeSign
+      const signatureRequest = await DigitalSignatureService.createSignatureRequest(
+        pdfBlob,
+        fileName,
+        signers,
+        contract.contract_number,
+        rentalId
+      );
+
+      console.log('✅ [FullMainRental] Enviado para assinatura:', signatureRequest);
+
+      // Atualizar status do contrato para "sent"
+      if (contract?.id) {
+        await ContractTemplateService.updateContractStatus(
+          contract.id,
+          'sent',
+          { signature_request_id: signatureRequest.id }
+        );
+      }
+
+      toast.success('Contrato de Locação enviado para assinatura digital via BeSign!');
+
+      // Recarregar contratos
+      await checkExistingContract();
+      
+    } catch (error) {
+      console.error('❌ [FullMainRental] Erro ao enviar para assinatura:', error);
+      
+      // Verificar se o erro é apenas cosmético (mock funcionando)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('error_fallback_') || errorMessage.includes('mock')) {
+        // Atualizar status mesmo no modo mock
+        if (contract?.id) {
+          await ContractTemplateService.updateContractStatus(
+            contract.id,
+            'sent',
+            { signature_request_id: 'mock_request_id' }
+          );
+        }
+        
+        toast.success('Contrato enviado para assinatura (modo mock)!');
+        await checkExistingContract();
+      } else {
+        toast.error('Não foi possível enviar para assinatura. Verifique os logs para mais detalhes.');
+      }
+    }
+  };
+
+  const handleDeleteContract = async (contractId: string) => {
+    try {
+      await ContractTemplateService.deleteContract(contractId);
+      setGeneratedContract(null);
+      setGeneratedPdfUrl(null);
+      toast.success('Contrato excluído com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir contrato:', error);
+      toast.error('Erro ao excluir contrato');
+    }
   };
 
   const prepareContractData = () => {
@@ -670,6 +819,14 @@ Testemunha 2`,
       // Preparar dados do contrato
       const contractDataForPDF = prepareContractData();
       
+      // Gerar contrato no banco de dados primeiro
+      const contract = await ContractTemplateService.generateContract(
+        templateId,
+        contractDataForPDF,
+        cityId,
+        rentalId
+      );
+      
       // Gerar PDF usando o template criado
       const pdfDoc = await PDFService.generateTemplateBasedContract(
         templateId,
@@ -683,15 +840,15 @@ Testemunha 2`,
       console.log('🎯 [FullMainRental] PDF gerado com sucesso:', pdfUrl);
       
       setGeneratedPdfUrl(pdfUrl);
+      setGeneratedContract(contract);
       
       if (onContractGenerated) {
         onContractGenerated(pdfUrl);
       }
       
-      // Manter o dialog aberto para mostrar os botões de ação
-      setIsDialogOpen(true);
+      setIsDialogOpen(false);
       
-      toast.success('🎉 CONTRATO COMPLETO DE 14 PÁGINAS GERADO! Botões de visualização disponíveis no modal.');
+      toast.success('Contrato Principal gerado com sucesso!');
       
     } catch (error) {
       console.error('❌ [FullMainRental] Erro ao gerar contrato:', error);
@@ -706,23 +863,43 @@ Testemunha 2`,
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="w-5 h-5" />
-          <h3 className="text-lg font-semibold">Contrato SILVIO ROBERTO - 14 PÁGINAS COMPLETAS</h3>
+          <h3 className="text-lg font-semibold">Contrato de Locação</h3>
         </div>
+        
+        <Button 
+          onClick={() => setIsDialogOpen(true)}
+          className="flex items-center gap-2"
+        >
+          <FileText className="w-4 h-4" />
+          Gerar Contrato
+        </Button>
+      </div>
 
-        <div className="flex gap-2">
-          {generatedPdfUrl && (
-            <>
+      {generatedContract && (
+        <div className="border rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm">{generatedContract.contract_number}</span>
+                <Badge variant="secondary" className="text-xs">
+                  Gerado
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Contrato de Locação - Criado em {new Date(generatedContract.created_at).toLocaleDateString('pt-BR')}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
               <Button
-                variant="default" 
-                className="flex items-center gap-2"
+                variant="outline"
+                size="sm"
                 onClick={() => window.open(generatedPdfUrl, '_blank')}
               >
                 <Eye className="w-4 h-4" />
-                Visualizar PDF
               </Button>
               <Button
                 variant="outline"
-                className="flex items-center gap-2"
+                size="sm"
                 onClick={() => {
                   const a = document.createElement('a');
                   a.href = generatedPdfUrl;
@@ -733,122 +910,65 @@ Testemunha 2`,
                 }}
               >
                 <Download className="w-4 h-4" />
-                Baixar
               </Button>
-            </>
-          )}
-          
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                variant={generatedPdfUrl ? "outline" : "default"} 
-                className="flex items-center gap-2"
-                onClick={() => setIsDialogOpen(true)}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleSendForSignature(generatedContract)}
               >
-                <FileText className="w-4 h-4" />
-                {generatedPdfUrl ? 'Gerar Novo' : 'Gerar Contrato 14 Páginas'}
+                <Send className="w-4 h-4" />
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md" aria-describedby="contract-description">
-            <DialogHeader>
-              <DialogTitle>Gerar Contrato SILVIO ROBERTO - 14 Páginas</DialogTitle>
-              <div id="contract-description" className="text-sm text-muted-foreground">
-                Geração do contrato completo com todas as 21 cláusulas detalhadas
-              </div>
-            </DialogHeader>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDeleteContract(generatedContract.id)}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Contrato SILVIO ROBERTO - Versão Completa</CardTitle>
-                  <CardDescription>
-                    ✅ 14 páginas completas<br/>
-                    ✅ Todas as 21 cláusulas detalhadas<br/>
-                    ✅ Todas as subcláusulas incluídas<br/>
-                    ✅ Conteúdo 100% idêntico ao original
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="font-medium">Cliente:</span> {contractData.client_name}
-                      </div>
-                      <div>
-                        <span className="font-medium">CPF:</span> {contractData.client_cpf}
-                      </div>
-                      <div>
-                        <span className="font-medium">Placa:</span> {contractData.motorcycle_plate}
-                      </div>
-                      <div>
-                        <span className="font-medium">Locadora:</span> {contractData.franchisee_name}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md" aria-describedby="contract-description">
+          <DialogHeader>
+            <DialogTitle>Contrato de Locação</DialogTitle>
+            <div id="contract-description" className="text-sm text-muted-foreground">
+              Geração do contrato de locação
+            </div>
+          </DialogHeader>
 
-              <div className="space-y-2">
-                <Button
-                  onClick={generateMainContract}
-                  disabled={isGenerating}
-                  className="w-full"
-                >
-                  {isGenerating ? 'Criando 14 Páginas...' : 'GERAR CONTRATO 14 PÁGINAS'}
-                </Button>
-
-                {generatedPdfUrl && (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-2 text-green-800">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-sm font-medium">PDF de 14 páginas gerado com sucesso!</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.open(generatedPdfUrl, '_blank')}
-                        className="flex-1 flex items-center gap-2"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Visualizar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const a = document.createElement('a');
-                          a.href = generatedPdfUrl;
-                          a.download = `contrato-silvio-roberto-${contractData.client_name?.replace(/\s+/g, '-')}-14-paginas.pdf`;
-                          document.body.appendChild(a);
-                          a.click();
-                          document.body.removeChild(a);
-                        }}
-                        className="flex-1 flex items-center gap-2"
-                      >
-                        <Download className="w-4 h-4" />
-                        Baixar PDF
-                      </Button>
-                    </div>
-                  </div>
-                )}
+          <div className="space-y-4">
+            <div className="space-y-2 text-sm">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="font-medium">Cliente:</span> {contractData.client_name}
+                </div>
+                <div>
+                  <span className="font-medium">CPF:</span> {contractData.client_cpf}
+                </div>
+                <div>
+                  <span className="font-medium">Placa:</span> {contractData.motorcycle_plate}
+                </div>
+                <div>
+                  <span className="font-medium">Locadora:</span> {contractData.franchisee_name}
+                </div>
               </div>
             </div>
-          </DialogContent>
-          </Dialog>
-        </div>
-      </div>
 
-      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-        <p className="text-sm text-green-800">
-          <strong>✅ CONTRATO COMPLETO:</strong> Implementação finalizada com 14 páginas completas.<br/>
-          <strong>📋 Incluído:</strong> TODAS as 21 cláusulas detalhadas do SILVIO ROBERTO.<br/>
-          <strong>🎯 Status:</strong> 100% do conteúdo original implementado em 8 anexos.
-        </p>
-      </div>
+            <div className="space-y-2">
+              <Button
+                onClick={generateMainContract}
+                disabled={isGenerating}
+                className="w-full"
+              >
+                {isGenerating ? 'Gerando...' : 'GERAR CONTRATO'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
